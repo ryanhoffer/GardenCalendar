@@ -156,13 +156,13 @@
         </div>
 
         <!-- Log in / Sign up tabs -->
-        <div class="flex items-center gap-1 bg-slate-100 rounded-xl p-1 mb-5">
+        <div id="authTabs" class="flex items-center gap-1 bg-slate-100 rounded-xl p-1 mb-5">
           <button id="authTabLogin" data-mode="login" class="auth-tab flex-1 px-3 py-2 rounded-lg text-sm font-semibold transition">Log in</button>
           <button id="authTabSignup" data-mode="signup" class="auth-tab flex-1 px-3 py-2 rounded-lg text-sm font-semibold transition">Sign up</button>
         </div>
 
         <!-- Social login -->
-        <div class="space-y-2">
+        <div id="authSocial" class="space-y-2">
           <button data-oauth="google" class="auth-oauth w-full px-4 py-2.5 rounded-xl text-sm font-semibold border border-slate-200 bg-white hover:bg-slate-50 transition flex items-center justify-center gap-2.5">
             <svg class="w-4 h-4" viewBox="0 0 18 18" aria-hidden="true"><path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.92c1.71-1.57 2.68-3.89 2.68-6.62z"/><path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.92-2.26c-.81.54-1.84.86-3.04.86-2.34 0-4.32-1.58-5.03-3.7H.96v2.33A9 9 0 0 0 9 18z"/><path fill="#FBBC05" d="M3.97 10.72a5.4 5.4 0 0 1 0-3.44V4.95H.96a9 9 0 0 0 0 8.1l3.01-2.33z"/><path fill="#EA4335" d="M9 3.58c1.32 0 2.5.45 3.44 1.35l2.58-2.58C13.46.89 11.43 0 9 0A9 9 0 0 0 .96 4.95l3.01 2.33C4.68 5.16 6.66 3.58 9 3.58z"/></svg>
             Continue with Google
@@ -173,7 +173,7 @@
           </button>
         </div>
 
-        <div class="flex items-center gap-3 my-4">
+        <div id="authDivider" class="flex items-center gap-3 my-4">
           <span class="flex-1 h-px bg-slate-200"></span>
           <span class="text-[11px] font-semibold text-slate-400 uppercase tracking-wide">or</span>
           <span class="flex-1 h-px bg-slate-200"></span>
@@ -181,7 +181,7 @@
 
         <!-- Email + password form -->
         <form id="authForm" class="space-y-3" novalidate>
-          <div>
+          <div id="authEmailField">
             <label class="block text-[11px] font-semibold text-slate-500 mb-1">Email</label>
             <input id="authGateEmail" type="email" inputmode="email" autocomplete="email" placeholder="you@example.com"
               class="w-full px-3 py-2.5 rounded-xl text-sm border border-slate-200 bg-slate-50 outline-none focus:border-accent-500 focus:ring-1 focus:ring-accent-500" />
@@ -196,6 +196,9 @@
               </button>
             </div>
             <p id="authSignupHint" class="text-[10px] text-slate-400 mt-1 hidden">Use at least 6 characters.</p>
+            <div class="text-right mt-1">
+              <button type="button" id="authForgot" class="text-[11px] font-semibold text-slate-400 hover:text-accent-700 transition">Forgot password?</button>
+            </div>
           </div>
 
           <p id="authGateMsg" class="text-xs leading-snug hidden"></p>
@@ -206,7 +209,7 @@
         </form>
 
         <!-- Continue without an account (offline-first) -->
-        <div class="mt-5 pt-4 border-t border-slate-200 text-center">
+        <div id="authSkipWrap" class="mt-5 pt-4 border-t border-slate-200 text-center">
           <button id="authSkip" class="text-xs font-semibold text-slate-500 hover:text-accent-700 transition">
             Continue without an account →
           </button>
@@ -5534,15 +5537,29 @@
         el.classList.toggle('text-slate-500', tone === 'info');
       }
 
-      // Switch between Log in / Sign up modes.
+      // Switch between Log in / Sign up / password-recovery modes.
       function authSetMode(mode) {
         authMode = mode;
+        const recovery = mode === 'recovery';
+        // Tabs, social login and the email field are irrelevant while setting a
+        // new password (the user is already identified via the recovery link).
         document.querySelectorAll('.auth-tab').forEach(t =>
           t.classList.toggle('active', t.dataset.mode === mode));
-        $('authSubmitLabel').textContent = mode === 'signup' ? 'Create account' : 'Log in';
-        $('authSignupHint').classList.toggle('hidden', mode !== 'signup');
+        const tabs = $('authTabs'); if (tabs) tabs.classList.toggle('hidden', recovery);
+        const social = $('authSocial'); if (social) social.classList.toggle('hidden', recovery);
+        const divider = $('authDivider'); if (divider) divider.classList.toggle('hidden', recovery);
+        const emailField = $('authEmailField'); if (emailField) emailField.classList.toggle('hidden', recovery);
+        const skip = $('authSkipWrap'); if (skip) skip.classList.toggle('hidden', recovery);
+
+        $('authSubmitLabel').textContent =
+          recovery ? 'Set new password' : mode === 'signup' ? 'Create account' : 'Log in';
+        $('authSignupHint').classList.toggle('hidden', mode !== 'signup' && !recovery);
+        if (recovery) $('authSignupHint').textContent = 'Enter a new password (at least 6 characters).';
+        else $('authSignupHint').textContent = 'Use at least 6 characters.';
+        // "Forgot password?" only makes sense when logging in.
+        const forgot = $('authForgot'); if (forgot) forgot.classList.toggle('hidden', mode !== 'login');
         const pw = $('authGatePassword');
-        if (pw) pw.setAttribute('autocomplete', mode === 'signup' ? 'new-password' : 'current-password');
+        if (pw) pw.setAttribute('autocomplete', mode === 'login' ? 'current-password' : 'new-password');
         authMsg('', null);
       }
 
@@ -5552,12 +5569,32 @@
         if (btn) { btn.disabled = b; btn.classList.toggle('opacity-60', b); btn.classList.toggle('cursor-wait', b); }
       }
 
-      // Email + password submit — logs in or signs up depending on the mode.
+      // Email + password submit — logs in, signs up, or sets a new password
+      // depending on the current mode.
       async function authSubmit(e) {
         if (e) e.preventDefault();
         if (!sb || authBusy) return;
-        const email = ($('authGateEmail').value || '').trim();
         const password = $('authGatePassword').value || '';
+
+        // --- Recovery: set a new password for the identified user ---
+        if (authMode === 'recovery') {
+          if (password.length < 6) { authMsg('Password must be at least 6 characters.', 'error'); $('authGatePassword').focus(); return; }
+          authSetBusy(true);
+          authMsg('Updating your password…', 'info');
+          try {
+            const { error } = await sb.auth.updateUser({ password });
+            if (error) { authMsg(error.message, 'error'); return; }
+            authMsg('Password updated. You are now signed in.', 'ok');
+            setTimeout(authGateHide, 900);
+          } catch (err) {
+            authMsg('Something went wrong. Please try again.', 'error');
+          } finally {
+            authSetBusy(false);
+          }
+          return;
+        }
+
+        const email = ($('authGateEmail').value || '').trim();
         if (!email) { authMsg('Enter your email.', 'error'); $('authGateEmail').focus(); return; }
         if (password.length < 6) { authMsg('Password must be at least 6 characters.', 'error'); $('authGatePassword').focus(); return; }
 
@@ -5580,6 +5617,25 @@
             if (error) { authMsg(error.message, 'error'); return; }
             authGateHide();
           }
+        } catch (err) {
+          authMsg('Something went wrong. Please try again.', 'error');
+        } finally {
+          authSetBusy(false);
+        }
+      }
+
+      // Send a password-reset email. The link returns to the app and fires a
+      // PASSWORD_RECOVERY auth event, which switches the gate to recovery mode.
+      async function authForgotPassword() {
+        if (!sb || authBusy) return;
+        const email = ($('authGateEmail').value || '').trim();
+        if (!email) { authMsg('Enter your email above first, then tap “Forgot password?”.', 'error'); $('authGateEmail').focus(); return; }
+        authSetBusy(true);
+        authMsg('Sending reset link…', 'info');
+        try {
+          const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo: location.origin });
+          if (error) { authMsg(error.message, 'error'); return; }
+          authMsg('Check your email for a link to reset your password.', 'ok');
         } catch (err) {
           authMsg('Something went wrong. Please try again.', 'error');
         } finally {
@@ -5629,6 +5685,7 @@
         document.querySelectorAll('.auth-oauth').forEach(b =>
           b.addEventListener('click', () => authOAuth(b.dataset.oauth)));
         $('authForm').addEventListener('submit', authSubmit);
+        $('authForgot').addEventListener('click', authForgotPassword);
         $('authSkip').addEventListener('click', authGateHide);
         $('authTogglePw').addEventListener('click', () => {
           const pw = $('authGatePassword');
@@ -5649,6 +5706,14 @@
         sb.auth.onAuthStateChange((_event, newSession) => {
           const wasSignedIn = !!session;
           session = newSession;
+          // Arriving from a password-reset email: prompt for a new password
+          // instead of dropping the user straight into the app.
+          if (_event === 'PASSWORD_RECOVERY') {
+            authGateShow();
+            authSetMode('recovery');
+            authMsg('Enter a new password to finish resetting your account.', 'info');
+            return;
+          }
           if (session) {
             showSignedIn(session.user.email);
             authGateHide();

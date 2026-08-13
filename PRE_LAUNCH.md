@@ -62,8 +62,10 @@ confirmation and password resets.
   in spam.
 
 ### App-side follow-ups
-- [ ] **Add a "Forgot password?" flow** in the auth gate
-  (`sb.auth.resetPasswordForEmail`) — not yet built.
+- [x] **"Forgot password?" flow** — implemented in the auth gate
+  (`resetPasswordForEmail` → returns via `PASSWORD_RECOVERY` → set new password).
+  Requires custom SMTP (or the built-in sender within its limits) to deliver the
+  reset email, plus the redirect URL allowlisted.
 - [ ] Decide on a **custom domain** for the app itself (Vercel → Domains) so
   redirect URLs and emails all use your brand, not `*.vercel.app`.
 
