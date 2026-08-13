@@ -166,6 +166,11 @@
         </button>
       </div>
 
+      <button id="searchBtn" class="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-slate-100 text-slate-700 hover:bg-accent-100 hover:text-accent-700 transition flex items-center gap-1.5" title="Search everything (⌘K / Ctrl-K)">
+        <i data-lucide="search" class="w-3.5 h-3.5"></i>
+        <span class="hidden sm:inline">Search</span>
+        <kbd class="hidden md:inline text-[10px] font-mono font-semibold px-1.5 py-0.5 rounded bg-white/70 border border-slate-200 text-slate-400">⌘K</kbd>
+      </button>
       <button id="demoBtn" class="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-slate-100 text-slate-700 hover:bg-accent-100 hover:text-accent-700 transition flex items-center gap-1.5" title="Reset to demo garden">
         <i data-lucide="sparkles" class="w-3.5 h-3.5"></i>
         <span class="hidden sm:inline">Demo</span>
@@ -645,6 +650,28 @@
             <i data-lucide="plus" class="w-3.5 h-3.5"></i> Add note
           </button>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ GLOBAL SEARCH ============ -->
+  <div id="searchModal" class="hidden fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-sm flex items-start justify-center p-4 sm:pt-24">
+    <div class="bg-white rounded-2xl shadow-xl w-full max-w-xl max-h-[80vh] flex flex-col animate-fadeUp overflow-hidden">
+      <div class="flex items-center gap-2.5 px-4 py-3 border-b border-slate-200">
+        <i data-lucide="search" class="w-5 h-5 text-slate-400 shrink-0"></i>
+        <input id="searchInput" type="text" autocomplete="off" spellcheck="false"
+          placeholder="Search plants, plantings, tasks, notes, locations…"
+          class="flex-1 min-w-0 bg-transparent outline-none text-sm placeholder:text-slate-400" />
+        <kbd class="hidden sm:inline text-[10px] font-mono font-semibold px-1.5 py-0.5 rounded bg-slate-100 border border-slate-200 text-slate-400">Esc</kbd>
+        <button id="searchClose" class="text-slate-400 hover:text-slate-700 transition sm:hidden">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+      <div id="searchResults" class="overflow-y-auto flex-1 py-2"></div>
+      <div class="px-4 py-2 border-t border-slate-200 bg-slate-50/60 text-[11px] text-slate-400 flex items-center gap-3 flex-wrap">
+        <span class="flex items-center gap-1"><kbd class="font-mono px-1 rounded bg-white border border-slate-200">↑</kbd><kbd class="font-mono px-1 rounded bg-white border border-slate-200">↓</kbd> navigate</span>
+        <span class="flex items-center gap-1"><kbd class="font-mono px-1 rounded bg-white border border-slate-200">↵</kbd> open</span>
+        <span class="flex items-center gap-1"><kbd class="font-mono px-1 rounded bg-white border border-slate-200">esc</kbd> close</span>
       </div>
     </div>
   </div>
@@ -2103,6 +2130,209 @@
       if (key.startsWith('year:')) return 'Year ' + key.slice(5);
       if (key.startsWith('location:')) return 'Location · ' + key.slice(9);
       return 'Note';
+    }
+
+    // ===================== GLOBAL SEARCH =====================
+    // A command-palette style search across everything in the garden:
+    // plants, plantings, tasks (type/plant/location/date/notes), every note
+    // log (plants, plantings, days, months, years, locations, misc) and task
+    // notes, plus locations themselves. Results are ranked and grouped, then
+    // navigated to on click / Enter.
+    let searchResults = [];   // current flat, ranked result list
+    let searchActive = 0;     // highlighted index for keyboard nav
+
+    function searchOpen() {
+      const modal = document.getElementById('searchModal');
+      modal.classList.remove('hidden');
+      const input = document.getElementById('searchInput');
+      input.value = '';
+      searchResults = [];
+      searchActive = 0;
+      searchRender();
+      lucide.createIcons();
+      setTimeout(() => input.focus(), 20);
+    }
+    function searchClose() {
+      document.getElementById('searchModal').classList.add('hidden');
+    }
+    function searchIsOpen() {
+      return !document.getElementById('searchModal').classList.contains('hidden');
+    }
+
+    // Short human date for result subtitles, e.g. "Mar 14, 2026".
+    function searchPrettyDate(iso) {
+      if (!iso || !/^\d{4}-\d{2}-\d{2}$/.test(iso)) return '';
+      const d = parseISO(iso);
+      return MONTHS_SHORT[d.getMonth()] + ' ' + d.getDate() + ', ' + d.getFullYear();
+    }
+
+    // Build the ranked result list for a query. Every candidate contributes a
+    // haystack string; a match on any word scores, prefix matches score higher.
+    function searchBuild(query) {
+      const q = query.trim().toLowerCase();
+      if (!q) return [];
+      const terms = q.split(/\s+/).filter(Boolean);
+      // Score a haystack against all terms; -1 if any term is missing.
+      const scoreOf = (hay) => {
+        if (!hay) return -1;
+        const h = hay.toLowerCase();
+        let s = 0;
+        for (const term of terms) {
+          const i = h.indexOf(term);
+          if (i < 0) return -1;
+          s += (i === 0 ? 4 : 2) + Math.max(0, 6 - i / 4);
+        }
+        return s;
+      };
+      const out = [];
+      const add = (o) => { if (o.score >= 0) out.push(o); };
+
+      // --- Plants ---
+      state.veggies.forEach(v => {
+        const pc = (v.plantings || []).length;
+        add({
+          score: scoreOf(v.name), group: 'Plants', icon: vegIconName(v), color: v.color,
+          title: v.name, subtitle: pc + (pc === 1 ? ' planting' : ' plantings'),
+          run: () => openPlantModal(v.id),
+        });
+      });
+
+      // --- Plantings ---
+      state.veggies.forEach(v => (v.plantings || []).forEach(p => {
+        add({
+          score: scoreOf(p.name + ' ' + v.name), group: 'Plantings',
+          icon: 'git-branch', color: p.color || v.color,
+          title: p.name, subtitle: v.name,
+          run: () => openPlantModal(v.id),
+        });
+      }));
+
+      // --- Tasks ---
+      state.tasks.forEach(t => {
+        const tt = TASK_TYPES[t.type] || TASK_TYPES.custom;
+        const label = taskLabel(t);
+        const noteTxt = noteText(t.notes);
+        const hay = [tt.label, label, t.location, noteTxt, t.date].filter(Boolean).join(' ');
+        const bits = [label];
+        if (t.location) bits.push(t.location);
+        const when = searchPrettyDate(t.date);
+        if (when) bits.push(when);
+        add({
+          score: scoreOf(hay), group: 'Tasks', icon: tt.icon, color: tt.color,
+          title: tt.label, subtitle: bits.join(' · '),
+          run: () => { searchClose(); openTaskModal({ taskId: t.id }); },
+        });
+      });
+
+      // --- Notes (every note log) ---
+      Object.keys(state.notes || {}).forEach(key => {
+        const log = noteLog(key);
+        if (!log.length) return;
+        const nt = NOTE_TYPES[noteTypeOf(key)] || NOTE_TYPES.other;
+        const target = noteTargetLabel(key);
+        // Match against the target label AND the text of every entry.
+        const bodies = log.map(e => noteText(e.html)).join(' \u2022 ');
+        const hay = target + ' ' + bodies;
+        const sc = scoreOf(hay);
+        const preview = bodies.length > 80 ? bodies.slice(0, 80) + '…' : bodies;
+        add({
+          score: sc, group: 'Notes', icon: nt.icon, color: nt.color,
+          title: target,
+          subtitle: (log.length > 1 ? log.length + ' entries · ' : '') + preview,
+          run: () => { searchClose(); openNoteModal(key); },
+        });
+      });
+
+      // --- Task notes (free-text notes attached to individual tasks) ---
+      state.tasks.forEach(t => {
+        const txt = noteText(t.notes);
+        if (!txt.trim()) return;
+        const tt = TASK_TYPES[t.type] || TASK_TYPES.custom;
+        add({
+          score: scoreOf(txt + ' ' + taskLabel(t)), group: 'Task notes',
+          icon: 'clipboard-list', color: tt.color,
+          title: txt.length > 60 ? txt.slice(0, 60) + '…' : txt,
+          subtitle: taskLabel(t) + ' · ' + tt.label + (searchPrettyDate(t.date) ? ' · ' + searchPrettyDate(t.date) : ''),
+          run: () => { searchClose(); openTaskModal({ taskId: t.id }); },
+        });
+      });
+
+      // --- Locations ---
+      (state.taskLocations || []).forEach(l => {
+        const count = state.tasks.filter(t => t.location === l.name).length;
+        add({
+          score: scoreOf(l.name), group: 'Locations',
+          icon: l.icon || DEFAULT_LOC_ICON, color: l.color || '#16a34a',
+          title: l.name, subtitle: count + (count === 1 ? ' task' : ' tasks'),
+          run: () => {
+            searchClose();
+            state.locationFilter = [l.name];
+            setView('list');
+          },
+        });
+      });
+
+      // Rank: score desc, then alphabetical by title. Cap the list.
+      out.sort((a, b) => (b.score - a.score) || a.title.localeCompare(b.title));
+      return out.slice(0, 40);
+    }
+
+    // Render the current results into the palette, grouped by category.
+    function searchRender() {
+      const box = document.getElementById('searchResults');
+      const input = document.getElementById('searchInput');
+      const q = input.value.trim();
+      if (!q) {
+        box.innerHTML = '<div class="px-4 py-10 text-center text-sm text-slate-400">' +
+          '<i data-lucide="search" class="w-6 h-6 mx-auto mb-2 opacity-60"></i>' +
+          'Search plants, plantings, tasks, notes &amp; locations.</div>';
+        lucide.createIcons();
+        return;
+      }
+      if (!searchResults.length) {
+        box.innerHTML = '<div class="px-4 py-10 text-center text-sm text-slate-400">' +
+          'No matches for &ldquo;' + escapeHtml(q) + '&rdquo;.</div>';
+        return;
+      }
+      let html = '';
+      let lastGroup = null;
+      searchResults.forEach((r, i) => {
+        if (r.group !== lastGroup) {
+          html += '<div class="px-4 pt-3 pb-1 text-[10px] font-bold uppercase tracking-wide text-slate-400">' + escapeHtml(r.group) + '</div>';
+          lastGroup = r.group;
+        }
+        const active = i === searchActive;
+        html += '<button type="button" data-idx="' + i + '" ' +
+          'class="search-item w-full text-left px-4 py-2 flex items-center gap-3 transition ' +
+          (active ? 'bg-accent-50' : 'hover:bg-slate-50') + '">' +
+            '<span class="shrink-0 w-7 h-7 rounded-lg flex items-center justify-center" style="background:' + r.color + '1a">' +
+              iconMarkup(r.icon, 'w-4 h-4', r.color) +
+            '</span>' +
+            '<span class="min-w-0 flex-1">' +
+              '<span class="block text-sm font-semibold text-slate-800 truncate">' + escapeHtml(r.title) + '</span>' +
+              (r.subtitle ? '<span class="block text-xs text-slate-400 truncate">' + escapeHtml(r.subtitle) + '</span>' : '') +
+            '</span>' +
+          '</button>';
+      });
+      box.innerHTML = html;
+      lucide.createIcons();
+      const activeEl = box.querySelector('.search-item[data-idx="' + searchActive + '"]');
+      if (activeEl) activeEl.scrollIntoView({ block: 'nearest' });
+    }
+
+    // Recompute + render after each keystroke.
+    function searchInputChanged() {
+      const q = document.getElementById('searchInput').value;
+      searchResults = searchBuild(q);
+      searchActive = 0;
+      searchRender();
+    }
+    // Fire the currently-highlighted result.
+    function searchRun(i) {
+      const r = searchResults[i];
+      if (!r) return;
+      searchClose();
+      r.run();
     }
 
     function renderActiveView() {
@@ -4039,6 +4269,48 @@
       if (btn) setView(btn.dataset.view);
     });
 
+    // ----- Global search wiring -----
+    document.getElementById('searchBtn').addEventListener('click', searchOpen);
+    document.getElementById('searchClose').addEventListener('click', searchClose);
+    document.getElementById('searchModal').addEventListener('click', e => {
+      if (e.target.id === 'searchModal') searchClose();
+    });
+    document.getElementById('searchInput').addEventListener('input', searchInputChanged);
+    document.getElementById('searchInput').addEventListener('keydown', e => {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        if (searchResults.length) { searchActive = (searchActive + 1) % searchResults.length; searchRender(); }
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        if (searchResults.length) { searchActive = (searchActive - 1 + searchResults.length) % searchResults.length; searchRender(); }
+      } else if (e.key === 'Enter') {
+        e.preventDefault();
+        searchRun(searchActive);
+      }
+    });
+    document.getElementById('searchResults').addEventListener('click', e => {
+      const btn = e.target.closest('.search-item');
+      if (btn) searchRun(+btn.dataset.idx);
+    });
+    document.getElementById('searchResults').addEventListener('mousemove', e => {
+      const btn = e.target.closest('.search-item');
+      if (btn) { const i = +btn.dataset.idx; if (i !== searchActive) { searchActive = i; searchRender(); } }
+    });
+    // ⌘K / Ctrl-K (and "/" when not typing) open search from anywhere.
+    document.addEventListener('keydown', e => {
+      const k = e.key.toLowerCase();
+      if ((e.metaKey || e.ctrlKey) && k === 'k') {
+        e.preventDefault();
+        searchIsOpen() ? searchClose() : searchOpen();
+        return;
+      }
+      if (e.key === '/' && !searchIsOpen()) {
+        const el = document.activeElement;
+        const typing = el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT' || el.isContentEditable);
+        if (!typing) { e.preventDefault(); searchOpen(); }
+      }
+    });
+
     // ----- Plant modal wiring -----
     document.getElementById('plantModalClose').addEventListener('click', closePlantModal);
     document.getElementById('plantModalCancel').addEventListener('click', closePlantModal);
@@ -4607,7 +4879,7 @@
       if (e.target.id === 'taskModal') closeTaskModal();
     });
     document.addEventListener('keydown', e => {
-      if (e.key === 'Escape') { closeTaskModal(); closeNoteModal(); closePlantModal(); closeLocationModal(); }
+      if (e.key === 'Escape') { closeTaskModal(); closeNoteModal(); closePlantModal(); closeLocationModal(); searchClose(); }
     });
 
     document.getElementById('resetBtn').addEventListener('click', resetAll);
