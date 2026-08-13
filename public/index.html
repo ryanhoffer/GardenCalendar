@@ -91,6 +91,33 @@
     .note-content a, .rte-editor a { color: var(--accent-600, #059669); text-decoration: underline; }
     .note-content p, .rte-editor p { margin: 0 0 0.35rem; }
     .note-content p:last-child, .rte-editor p:last-child { margin-bottom: 0; }
+
+    /* ============================================================
+       MOBILE / TABLET ONLY — everything below the `lg` breakpoint.
+       Desktop (>= 1024px) is intentionally untouched by these rules.
+       ============================================================ */
+    @media (max-width: 1023.98px) {
+      /* Header: allow the row to wrap onto multiple lines. */
+      header > div { flex-wrap: wrap; row-gap: 0.5rem; }
+      /* Keep the Demo / Clear actions pinned to the right of the first row. */
+      #demoBtn { margin-left: auto; }
+      /* Move the 6-button view switcher onto its own full-width row and let it
+         scroll horizontally instead of overflowing the viewport. */
+      #viewSwitcher {
+        order: 10;
+        flex-basis: 100%;
+        margin-left: 0 !important;
+        justify-content: flex-start;
+        overflow-x: auto;
+        -ms-overflow-style: none;
+        scrollbar-width: none;
+      }
+      #viewSwitcher::-webkit-scrollbar { display: none; }
+      #viewSwitcher button { flex: 0 0 auto; }  /* don't squash the buttons */
+
+      /* Reclaim a little horizontal room for the calendar on small screens. */
+      main { padding-left: 0.75rem; padding-right: 0.75rem; }
+    }
   </style>
 </head>
 
