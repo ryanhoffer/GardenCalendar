@@ -58,6 +58,9 @@
   <!-- Lucide Icons -->
   <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
 
+  <!-- Supabase JS client (cloud sync) -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
   <!-- Google Font: Inter -->
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -139,6 +142,40 @@
   <main class="max-w-6xl mx-auto px-5 py-6 grid grid-cols-1 lg:grid-cols-[260px_1fr] gap-6 items-start">
 
     <aside class="space-y-4 lg:sticky lg:top-24">
+      <!-- Account / cloud sync (hidden until Supabase config loads) -->
+      <div id="accountCard" class="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 hidden">
+        <div class="flex items-center gap-2 mb-3">
+          <i data-lucide="cloud" class="w-5 h-5 text-accent-600"></i>
+          <h2 class="font-bold text-slate-900">Account</h2>
+          <span id="syncBadge" class="ml-auto text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-500">Local only</span>
+        </div>
+
+        <!-- Signed-out: magic-link sign in -->
+        <div id="authSignedOut">
+          <label class="block text-[11px] font-semibold text-slate-500 mb-1">Email</label>
+          <div class="flex items-center gap-2">
+            <input id="authEmail" type="email" inputmode="email" placeholder="you@example.com"
+              class="flex-1 min-w-0 px-3 py-1.5 rounded-lg text-sm border border-slate-200 bg-slate-50 outline-none focus:border-accent-500 focus:ring-1 focus:ring-accent-500" />
+            <button id="authSignIn" class="px-3 py-2 rounded-lg text-xs font-semibold bg-accent-600 text-white hover:bg-accent-700 shadow-sm transition shrink-0">Sign in</button>
+          </div>
+          <p id="authHint" class="text-[10px] text-slate-400 mt-2 leading-snug">Sign in with a magic link to sync your garden across devices. Your data stays on this device until you do.</p>
+        </div>
+
+        <!-- Signed-in: identity + sign out -->
+        <div id="authSignedIn" class="hidden">
+          <div class="flex items-center gap-2">
+            <div class="w-8 h-8 rounded-full bg-accent-100 text-accent-700 flex items-center justify-center shrink-0">
+              <i data-lucide="user" class="w-4 h-4"></i>
+            </div>
+            <div class="min-w-0 flex-1">
+              <p id="authUserEmail" class="text-xs font-semibold text-slate-700 truncate">—</p>
+              <p class="text-[10px] text-slate-400">Synced to the cloud</p>
+            </div>
+            <button id="authSignOut" class="px-2.5 py-1.5 rounded-lg text-[11px] font-semibold bg-slate-100 text-slate-600 hover:bg-rose-100 hover:text-rose-700 transition shrink-0">Sign out</button>
+          </div>
+        </div>
+      </div>
+
       <!-- My Plants (collapsible) -->
       <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-4">
         <button id="plantsToggle" class="w-full flex items-center gap-2 mb-3" title="Collapse / expand">
@@ -1025,6 +1062,9 @@
           veggies: state.veggies, tasks: state.tasks, view: state.view, filter: state.filter, typeFilter: state.typeFilter, locationFilter: state.locationFilter, taskLocations: state.taskLocations, hiddenVegs: state.hiddenVegs, hiddenPlantings: state.hiddenPlantings, notes: state.notes, location: state.location, frostDates: state.frostDates, weather: { data: weatherCache, lastSync: weatherLastSync, version: WEATHER_SYNC_VERSION }, seq
         }));
       } catch (e) {}
+      // Optional cloud-sync hook, installed by the Supabase layer at the end of
+      // this file. Kept fail-soft so offline / logged-out use never breaks.
+      try { if (typeof window.onStatePersisted === 'function') window.onStatePersisted(); } catch (e) {}
     }
     function scheduleSave() { clearTimeout(saveTimer); saveTimer = setTimeout(persistState, 300); }
     function loadPersistedState() {
@@ -4975,6 +5015,176 @@
     } else {
       syncWeatherIfNeeded();
     }
+  </script>
+
+  <!-- ============================================================= -->
+  <!-- Supabase cloud sync (offline-first: localStorage stays the    -->
+  <!-- source of truth; this layer syncs it when a user is signed    -->
+  <!-- in). All network calls are fail-soft. See DEPLOYMENT.md.      -->
+  <!-- ============================================================= -->
+  <script>
+    (function () {
+      const TABLE = 'garden_state';
+      let sb = null;              // Supabase client (once configured)
+      let session = null;         // current auth session, or null
+      let cloudSaveTimer = null;  // debounce cloud upserts
+
+      const $ = (id) => document.getElementById(id);
+
+      function setBadge(text, tone) {
+        const b = $('syncBadge');
+        if (!b) return;
+        b.textContent = text;
+        b.className = 'ml-auto text-[10px] font-bold px-2 py-0.5 rounded-full ' +
+          (tone === 'ok' ? 'bg-accent-100 text-accent-700'
+            : tone === 'busy' ? 'bg-amber-100 text-amber-700'
+            : 'bg-slate-100 text-slate-500');
+      }
+
+      function showSignedIn(email) {
+        $('authSignedOut').classList.add('hidden');
+        $('authSignedIn').classList.remove('hidden');
+        $('authUserEmail').textContent = email || '—';
+        setBadge('Synced', 'ok');
+        if (window.lucide) lucide.createIcons();
+      }
+      function showSignedOut() {
+        $('authSignedIn').classList.add('hidden');
+        $('authSignedOut').classList.remove('hidden');
+        setBadge('Local only', 'idle');
+        if (window.lucide) lucide.createIcons();
+      }
+
+      // Read the app's current localStorage snapshot (whatever persistState wrote).
+      function localSnapshot() {
+        try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null'); }
+        catch (e) { return null; }
+      }
+
+      // Push the local snapshot to the cloud (debounced). Fire-and-forget.
+      function pushToCloud() {
+        if (!sb || !session) return;
+        clearTimeout(cloudSaveTimer);
+        cloudSaveTimer = setTimeout(async () => {
+          const snap = localSnapshot();
+          if (!snap) return;
+          snap.updatedAt = Date.now();
+          setBadge('Saving…', 'busy');
+          const { error } = await sb.from(TABLE).upsert({
+            user_id: session.user.id,
+            data: snap,
+          });
+          setBadge(error ? 'Sync error' : 'Synced', error ? 'idle' : 'ok');
+        }, 600);
+      }
+
+      // Installed hook: persistState() calls this after every local write.
+      window.onStatePersisted = pushToCloud;
+
+      // Reconcile local vs cloud on sign-in. Last-write-wins by timestamp,
+      // cloud winning ties.
+      async function reconcile() {
+        if (!sb || !session) return;
+        setBadge('Syncing…', 'busy');
+        const { data, error } = await sb
+          .from(TABLE)
+          .select('data, updated_at')
+          .eq('user_id', session.user.id)
+          .maybeSingle();
+
+        if (error) { setBadge('Sync error', 'idle'); return; }
+
+        const local = localSnapshot();
+        const localTs = (local && local.updatedAt) || 0;
+        const cloud = data && data.data;
+        const cloudTs = cloud && cloud.updatedAt
+          ? cloud.updatedAt
+          : (data && data.updated_at ? Date.parse(data.updated_at) : 0);
+
+        if (cloud && (!local || cloudTs >= localTs)) {
+          // Cloud is newer (or we have nothing local) → hydrate the app.
+          try {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(cloud));
+            if (typeof loadPersistedState === 'function') loadPersistedState();
+            if (typeof renderAll === 'function') renderAll();
+            if (window.lucide) lucide.createIcons();
+          } catch (e) {}
+          setBadge('Synced', 'ok');
+        } else if (local) {
+          // Local is newer (or cloud empty) → push it up.
+          await sb.from(TABLE).upsert({ user_id: session.user.id, data: local });
+          setBadge('Synced', 'ok');
+        } else {
+          setBadge('Synced', 'ok');
+        }
+      }
+
+      async function signIn() {
+        if (!sb) return;
+        const email = ($('authEmail').value || '').trim();
+        if (!email) { $('authEmail').focus(); return; }
+        const hint = $('authHint');
+        const { error } = await sb.auth.signInWithOtp({
+          email,
+          options: { emailRedirectTo: location.origin },
+        });
+        if (hint) {
+          hint.textContent = error
+            ? ('Could not send link: ' + error.message)
+            : 'Check your email for a sign-in link.';
+          hint.classList.toggle('text-rose-500', !!error);
+        }
+      }
+
+      async function signOut() {
+        if (!sb) return;
+        await sb.auth.signOut();
+      }
+
+      // Boot: fetch public config, create the client, wire events. If the
+      // backend isn't configured, the Account card stays hidden and the app
+      // runs exactly as before (localStorage only).
+      async function boot() {
+        let cfg = null;
+        try {
+          const r = await fetch('/api/config');
+          if (r.ok) cfg = await r.json();
+        } catch (e) { /* offline or no backend — stay local-only */ }
+
+        if (!cfg || !cfg.configured || !window.supabase) return;
+
+        sb = window.supabase.createClient(cfg.supabaseUrl, cfg.supabaseAnonKey);
+        $('accountCard').classList.remove('hidden');
+        if (window.lucide) lucide.createIcons();
+
+        $('authSignIn').addEventListener('click', signIn);
+        $('authEmail').addEventListener('keydown', (e) => { if (e.key === 'Enter') signIn(); });
+        $('authSignOut').addEventListener('click', signOut);
+
+        const { data: { session: initial } } = await sb.auth.getSession();
+        session = initial;
+        if (session) { showSignedIn(session.user.email); reconcile(); }
+        else { showSignedOut(); }
+
+        sb.auth.onAuthStateChange((_event, newSession) => {
+          const wasSignedIn = !!session;
+          session = newSession;
+          if (session) {
+            showSignedIn(session.user.email);
+            if (!wasSignedIn) reconcile();
+          } else {
+            showSignedOut();
+          }
+        });
+      }
+
+      // Defer until the main app script has run (globals + initial render).
+      if (document.readyState === 'loading') {
+        window.addEventListener('DOMContentLoaded', boot);
+      } else {
+        boot();
+      }
+    })();
   </script>
 </body>
 </html>

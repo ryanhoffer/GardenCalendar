@@ -1,0 +1,10 @@
+{
+  "name": "garden-calendar",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Offline-first garden planning calendar (static + Vercel serverless), cloud sync via Supabase.",
+  "scripts": {
+    "dev": "vercel dev",
+    "deploy": "vercel --prod"
+  }
+}
