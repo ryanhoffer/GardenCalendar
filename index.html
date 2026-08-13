@@ -108,6 +108,9 @@
         <button data-view="day" class="px-3 py-1.5 rounded-lg text-xs font-semibold transition flex items-center gap-1.5">
           <i data-lucide="calendar-check" class="w-3.5 h-3.5"></i> Day
         </button>
+        <button data-view="week" class="px-3 py-1.5 rounded-lg text-xs font-semibold transition flex items-center gap-1.5">
+          <i data-lucide="calendar-range" class="w-3.5 h-3.5"></i> Week
+        </button>
         <button data-view="month" class="px-3 py-1.5 rounded-lg text-xs font-semibold transition flex items-center gap-1.5">
           <i data-lucide="calendar-days" class="w-3.5 h-3.5"></i> Month
         </button>
@@ -236,13 +239,15 @@
     <section class="space-y-4 min-w-0">
 
       <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 flex items-center gap-3 flex-wrap">
-        <button id="prevBtn" class="w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 flex items-center justify-center transition" title="Previous">
-          <i data-lucide="chevron-left" class="w-4 h-4"></i>
-        </button>
-        <button id="todayBtn" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-100 hover:bg-slate-200 transition">Today</button>
-        <button id="nextBtn" class="w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 flex items-center justify-center transition" title="Next">
-          <i data-lucide="chevron-right" class="w-4 h-4"></i>
-        </button>
+        <div id="dateNav" class="flex items-center gap-3">
+          <button id="prevBtn" class="w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 flex items-center justify-center transition" title="Previous">
+            <i data-lucide="chevron-left" class="w-4 h-4"></i>
+          </button>
+          <button id="todayBtn" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-100 hover:bg-slate-200 transition">Today</button>
+          <button id="nextBtn" class="w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 flex items-center justify-center transition" title="Next">
+            <i data-lucide="chevron-right" class="w-4 h-4"></i>
+          </button>
+        </div>
         <h2 id="periodLabel" class="font-bold text-lg text-slate-900 ml-1"></h2>
         <button id="periodNoteBtn" class="w-8 h-8 rounded-lg flex items-center justify-center transition text-slate-400 hover:bg-slate-100 hover:text-slate-600" title="Note for this month/year">
           <i data-lucide="sticky-note" class="w-4 h-4"></i>
@@ -264,6 +269,7 @@
       </div>
 
       <div id="monthView" class="bg-white rounded-2xl border border-slate-200 shadow-sm p-3 sm:p-4"></div>
+      <div id="weekView" class="hidden"></div>
       <div id="dayView" class="hidden bg-white rounded-2xl border border-slate-200 shadow-sm p-4 sm:p-6"></div>
       <div id="yearView" class="hidden"></div>
       <div id="listView" class="hidden bg-white rounded-2xl border border-slate-200 shadow-sm p-4"></div>
@@ -511,6 +517,22 @@
       custom:        { label: 'Other',         icon: 'star',       color: '#64748b' },
     };
 
+    // Note categories for the Notes view filter. `test` matches a note key.
+    const NOTE_TYPES = {
+      plant:   { label: 'Plants',                  icon: 'carrot',         color: '#059669', test: k => k.startsWith('veg:') },
+      variety: { label: 'Varieties / successions', icon: 'git-branch',     color: '#0d9488', test: k => k.startsWith('planting:') },
+      day:     { label: 'Days',                    icon: 'calendar-days',  color: '#0ea5e9', test: k => k.startsWith('day:') },
+      month:   { label: 'Months',                  icon: 'calendar-range', color: '#8b5cf6', test: k => k.startsWith('month:') },
+      year:    { label: 'Years',                   icon: 'calendar',       color: '#d97706', test: k => k.startsWith('year:') },
+      other:   { label: 'Other',                   icon: 'sticky-note',    color: '#64748b', test: k => !/^(veg|planting|day|month|year):/.test(k) },
+      task:    { label: 'Task notes',              icon: 'clipboard-list', color: '#ea580c', test: () => false },
+    };
+    // Which NOTE_TYPES a note key belongs to.
+    function noteTypeOf(key) {
+      for (const [id, nt] of Object.entries(NOTE_TYPES)) if (nt.test(key)) return id;
+      return 'other';
+    }
+
     const VEG_COLORS = ['#059669','#0ea5e9','#8b5cf6','#f43f5e','#f59e0b','#14b8a6','#ec4899','#6366f1','#f97316','#84cc16'];
 
     // Icons a user can assign to a plant. Kept to garden-appropriate lucide
@@ -713,6 +735,9 @@
     let weatherSyncVersion = 0;
     function resetWeatherStore() { for (const k in weatherCache) delete weatherCache[k]; weatherLastSync = ''; }
     function addDaysISO(iso, n) { const d = parseISO(iso); d.setDate(d.getDate() + n); return toISO(d); }
+    // Sunday that starts the week containing `iso`, and the Saturday that ends it.
+    function weekStartISO(iso) { const d = parseISO(iso); return addDaysISO(iso, -d.getDay()); }
+    function weekEndISO(iso) { return addDaysISO(weekStartISO(iso), 6); }
 
     // Resolve a US ZIP to lat/lon via the free zippopotam.us service.
     async function geocodeZip(zip) {
@@ -867,6 +892,9 @@
       cursor: isoToday(),
       filter: 'all', // 'all' | 'veg:<id>' | 'planting:<id>'
       typeFilter: [], // array of task-type keys to show; empty = show all
+      noteTypeFilter: [], // array of note-type keys to show in Notes view; empty = show all
+      notesCollapsedGroups: [], // note category ids collapsed in Notes view
+      notesCollapsedCards: [],  // note keys whose entries are collapsed in Notes view
       hiddenVegs: [],      // crop ids toggled OFF in My Plants
       hiddenPlantings: [], // variety ids toggled OFF in My Plants
       collapsedVegs: [],   // crop ids collapsed (sub-rows hidden) in My Plants
@@ -1482,6 +1510,9 @@
 
     // Build the multi-select task-type filter as a dropdown of toggle chips.
     function renderTypeFilter() {
+      // In the Notes view this dropdown filters by note category instead of
+      // task type.
+      if (state.view === 'notes') { renderNoteTypeFilter(); return; }
       const selected = state.typeFilter || [];
       const total = Object.keys(TASK_TYPES).length;
       const active = selected.length && selected.length < total;
@@ -1513,6 +1544,40 @@
         '<div class="px-3 py-1.5 flex items-center justify-between border-b border-slate-100">' +
           '<span class="text-[10px] font-bold uppercase tracking-wide text-slate-400">Show task types</span>' +
           '<button type="button" data-type-filter-clear class="text-[10px] font-bold text-accent-600 hover:text-accent-700">All</button>' +
+        '</div>' + rows;
+    }
+
+    // Notes-view variant of the type filter: filter by note category.
+    function renderNoteTypeFilter() {
+      const selected = state.noteTypeFilter || [];
+      const total = Object.keys(NOTE_TYPES).length;
+      const active = selected.length && selected.length < total;
+      const label = !selected.length
+        ? 'All notes'
+        : (selected.length === 1 ? NOTE_TYPES[selected[0]].label : selected.length + ' note types');
+      const btn = document.getElementById('typeFilterBtn');
+      btn.innerHTML =
+        '<i data-lucide="list-filter" class="w-4 h-4 ' + (active ? 'text-accent-600' : 'text-slate-400') + '"></i>' +
+        '<span class="truncate">' + escapeHtml(label) + '</span>' +
+        '<i data-lucide="chevron-down" class="w-3.5 h-3.5 text-slate-400 shrink-0"></i>';
+      btn.classList.toggle('border-accent-400', active);
+      btn.classList.toggle('bg-accent-50', active);
+
+      const menu = document.getElementById('typeFilterMenu');
+      const rows = Object.entries(NOTE_TYPES).map(([key, nt]) => {
+        const on = !selected.length || selected.includes(key);
+        return '<button type="button" data-note-type-filter="' + key + '" class="w-full flex items-center gap-2 px-3 py-1.5 text-left text-xs font-semibold hover:bg-slate-50 transition">' +
+            '<span class="w-4 h-4 rounded flex items-center justify-center border ' + (on ? 'border-accent-500' : 'border-slate-300') + '" style="' + (on ? 'background:' + nt.color : '') + '">' +
+              (on ? '<i data-lucide="check" class="w-3 h-3 text-white"></i>' : '') +
+            '</span>' +
+            '<i data-lucide="' + nt.icon + '" class="w-3.5 h-3.5" style="color:' + nt.color + '"></i>' +
+            '<span>' + nt.label + '</span>' +
+          '</button>';
+      }).join('');
+      menu.innerHTML =
+        '<div class="px-3 py-1.5 flex items-center justify-between border-b border-slate-100">' +
+          '<span class="text-[10px] font-bold uppercase tracking-wide text-slate-400">Show note types</span>' +
+          '<button type="button" data-note-type-filter-clear class="text-[10px] font-bold text-accent-600 hover:text-accent-700">All</button>' +
         '</div>' + rows;
     }
 
@@ -1615,14 +1680,7 @@
             '</button>' +
           '</div>' +
           (vCollapsed ? '' :
-            (plantingRows ? '<div class="mt-1 space-y-0.5">' + plantingRows + '</div>' : '') +
-            '<div class="flex items-center gap-1 pl-5 mt-1">' +
-              '<input data-planting-input="' + v.id + '" type="text" maxlength="24" placeholder="Add variety / succession…" ' +
-                'class="flex-1 min-w-0 px-2 py-1 rounded text-[11px] border border-slate-200 bg-white outline-none focus:border-accent-500 focus:ring-1 focus:ring-accent-500" />' +
-              '<button data-action="addPlanting" class="px-1.5 py-1 rounded text-[10px] font-semibold bg-accent-100 text-accent-700 hover:bg-accent-200 transition shrink-0" title="Add planting">' +
-                '<i data-lucide="plus" class="w-3 h-3"></i>' +
-              '</button>' +
-            '</div>') +
+            (plantingRows ? '<div class="mt-1 space-y-0.5">' + plantingRows + '</div>' : '')) +
         '</div>';
       }).join('');
 
@@ -1726,13 +1784,26 @@
       const label = document.getElementById('periodLabel');
       if (state.view === 'month') label.textContent = MONTHS[d.getMonth()] + ' ' + d.getFullYear();
       else if (state.view === 'day') label.textContent = MONTHS_SHORT[d.getMonth()] + ' ' + d.getDate() + ', ' + d.getFullYear();
+      else if (state.view === 'week') {
+        const ws = parseISO(weekStartISO(state.cursor)), we = parseISO(weekEndISO(state.cursor));
+        const sameMonth = ws.getMonth() === we.getMonth();
+        const sameYear = ws.getFullYear() === we.getFullYear();
+        const left = MONTHS_SHORT[ws.getMonth()] + ' ' + ws.getDate() + (sameYear ? '' : ', ' + ws.getFullYear());
+        const right = (sameMonth ? '' : MONTHS_SHORT[we.getMonth()] + ' ') + we.getDate() + ', ' + we.getFullYear();
+        label.textContent = left + ' – ' + right;
+      }
       else if (state.view === 'year') label.textContent = '' + d.getFullYear();
       else if (state.view === 'notes') label.textContent = 'All Notes';
       else label.textContent = 'All Tasks';
 
+      // Date nav (prev / today / next) is only meaningful for the calendar
+      // views; hide it in the List and Notes views.
+      const dateNav = document.getElementById('dateNav');
+      dateNav.classList.toggle('hidden', state.view === 'list' || state.view === 'notes');
+
       // Period note button: attaches to the current month or year.
       const btn = document.getElementById('periodNoteBtn');
-      if (state.view === 'list' || state.view === 'notes' || state.view === 'day') {
+      if (state.view === 'list' || state.view === 'notes' || state.view === 'day' || state.view === 'week') {
         btn.classList.add('hidden');
       } else {
         btn.classList.remove('hidden');
@@ -1764,11 +1835,13 @@
 
     function renderActiveView() {
       document.getElementById('monthView').classList.toggle('hidden', state.view !== 'month');
+      document.getElementById('weekView').classList.toggle('hidden', state.view !== 'week');
       document.getElementById('dayView').classList.toggle('hidden', state.view !== 'day');
       document.getElementById('yearView').classList.toggle('hidden', state.view !== 'year');
       document.getElementById('listView').classList.toggle('hidden', state.view !== 'list');
       document.getElementById('notesView').classList.toggle('hidden', state.view !== 'notes');
       if (state.view === 'month') renderMonth();
+      else if (state.view === 'week') renderWeek();
       else if (state.view === 'day') renderDay();
       else if (state.view === 'year') renderYear();
       else if (state.view === 'notes') renderNotes();
@@ -1810,6 +1883,51 @@
       }
       document.getElementById('monthView').innerHTML =
         cells + '<div class="grid grid-cols-7 gap-1">' + grid + '</div>';
+    }
+
+    // Week view: a 7-day (Sun–Sat) agenda. Each day is a column showing the
+    // day's weather, frost markers, tasks, and note indicator. Draws from the
+    // same task/note/weather sources as the Month and Day views.
+    function renderWeek() {
+      const start = weekStartISO(state.cursor);
+      const today = isoToday();
+
+      let cols = '';
+      for (let i = 0; i < 7; i++) {
+        const iso = addDaysISO(start, i);
+        const d = parseISO(iso);
+        const isToday = iso === today;
+        const dayTasks = tasksOn(iso).sort((a, b) => {
+          if (isGhost(a) !== isGhost(b)) return isGhost(a) ? -1 : 1;
+          return taskLabel(a).localeCompare(taskLabel(b));
+        });
+        const pills = dayTasks.map(t => taskPill(t)).join('');
+        const dayKey = 'day:' + iso;
+        const dayNote = noteLogText(dayKey);
+        const cellTitle = dayNote ? escapeHtml(dayNote) : '';
+
+        const tasksBlock = dayTasks.length
+          ? '<div class="flex flex-col gap-1">' + frostPills(iso) + pills + '</div>'
+          : '<div class="flex flex-col gap-1">' + frostPills(iso) +
+              '<button data-add-day="' + iso + '" class="w-full text-[10px] font-semibold text-slate-300 hover:text-accent-600 rounded border border-dashed border-slate-200 hover:border-accent-300 py-1 transition">+ Add</button>' +
+            '</div>';
+
+        cols +=
+          '<div data-week-day="' + iso + '" title="' + cellTitle + '" class="flex flex-col gap-1.5 rounded-xl border p-2 min-h-[160px] cursor-pointer transition ' +
+            (isToday ? 'border-accent-400 bg-accent-50' : 'border-slate-100 bg-slate-50/50 hover:border-accent-300') + '">' +
+            '<div class="flex items-center justify-between gap-1">' +
+              '<button data-open-day="' + iso + '" class="text-left leading-tight rounded px-1 -mx-1 hover:bg-white/70 transition" title="Open day view">' +
+                '<div class="text-[10px] font-bold uppercase ' + (isToday ? 'text-accent-600' : 'text-slate-400') + '">' + DOW[d.getDay()] + '</div>' +
+                '<div class="text-sm font-bold ' + (isToday ? 'text-accent-700' : 'text-slate-700') + '">' + d.getDate() + '</div>' +
+              '</button>' +
+              '<div class="flex items-center gap-1">' + weatherChip(iso) + noteButton(dayKey, 'day', 'w-3 h-3') + '</div>' +
+            '</div>' +
+            tasksBlock +
+          '</div>';
+      }
+
+      document.getElementById('weekView').innerHTML =
+        '<div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2">' + cols + '</div>';
     }
 
     // Single-day agenda: weather, frost markers, and the day's tasks.
@@ -2124,12 +2242,64 @@
       el.innerHTML = filterBar + body + emptyMsg;
     }
 
-    // Dedicated Notes panel: every note across crops, varieties, days, months, years.
+    // Whether a note key should appear in the Notes panel given the current
+    // plant filter and the My Plants hidden toggles. Day/month/year/other notes
+    // are global, so they only hide when a specific plant filter is active.
+    function noteVisibleInPanel(key) {
+      // Note-type filter (Notes view dropdown). Empty = show all categories.
+      const nts = state.noteTypeFilter || [];
+      if (nts.length && !nts.includes(noteTypeOf(key))) return false;
+      // Hide plant/variety notes turned off via the My Plants toggles.
+      if (key.startsWith('veg:') && vegHidden(+key.slice(4))) return false;
+      if (key.startsWith('planting:')) {
+        const pid = +key.slice(9);
+        if (plantingHidden(pid)) return false;
+        const veg = vegOfPlanting(pid);
+        if (veg && vegHidden(veg.id)) return false;
+      }
+      // Apply the plant filter dropdown (all / veg:<id> / planting:<id>).
+      const f = state.filter || 'all';
+      if (f === 'all') return true;
+      if (f.startsWith('veg:')) {
+        const id = +f.slice(4);
+        if (key === 'veg:' + id) return true;
+        if (key.startsWith('planting:')) { const veg = vegOfPlanting(+key.slice(9)); return !!veg && veg.id === id; }
+        return false; // hide day/month/year and other plants under a crop filter
+      }
+      if (f.startsWith('planting:')) {
+        const id = +f.slice(9);
+        if (key === 'planting:' + id) return true;
+        const veg = vegOfPlanting(id);
+        if (veg && key === 'veg:' + veg.id) return true; // include the parent crop's note
+        return false;
+      }
+      return true;
+    }
+
+    // Whether a task's free-text note should appear in the Notes panel, honoring
+    // the note-type filter, the plant filter, and the My Plants hidden toggles.
+    function taskNoteVisibleInPanel(t) {
+      const nts = state.noteTypeFilter || [];
+      if (nts.length && !nts.includes('task')) return false;
+      if (vegHidden(t.vegId)) return false;
+      if (t.plantingId && plantingHidden(t.plantingId)) return false;
+      const f = state.filter || 'all';
+      if (f === 'all') return true;
+      if (f.startsWith('veg:')) return t.vegId === +f.slice(4);
+      if (f.startsWith('planting:')) return t.plantingId === +f.slice(9);
+      return true;
+    }
+
+    // Dedicated Notes panel: every note across crops, varieties, days, months,
+    // years — plus per-task notes (the free-text on individual tasks).
     function renderNotes() {
       const el = document.getElementById('notesView');
-      const keys = Object.keys(state.notes).filter(k => hasNote(k));
-
-      if (!keys.length) {
+      const allKeys = Object.keys(state.notes).filter(k => hasNote(k));
+      const keys = allKeys.filter(noteVisibleInPanel);
+      // Task notes: individual tasks carrying free-text notes (t.notes).
+      const allTaskNotes = state.tasks.filter(t => noteText(t.notes).trim());
+      const taskNotes = allTaskNotes.filter(taskNoteVisibleInPanel);
+      if (!allKeys.length && !allTaskNotes.length) {
         el.innerHTML = '<div class="text-center py-10">' +
           '<i data-lucide="sticky-note" class="w-8 h-8 text-slate-300 mx-auto mb-2"></i>' +
           '<p class="text-sm text-slate-400">No notes yet. Add notes from any plant, variety, day, or month — they\'ll gather here.</p>' +
@@ -2137,13 +2307,15 @@
         return;
       }
 
-      // Group notes into readable categories.
+      // Group notes into readable categories. The final "Other" group is a
+      // catch-all so no note in the data is ever silently dropped.
       const groups = [
         { id: 'plant', label: 'Plants', icon: 'carrot', test: k => k.startsWith('veg:') },
         { id: 'variety', label: 'Varieties / successions', icon: 'git-branch', test: k => k.startsWith('planting:') },
         { id: 'day', label: 'Days', icon: 'calendar-days', test: k => k.startsWith('day:') },
         { id: 'month', label: 'Months', icon: 'calendar-range', test: k => k.startsWith('month:') },
         { id: 'year', label: 'Years', icon: 'calendar', test: k => k.startsWith('year:') },
+        { id: 'other', label: 'Other', icon: 'sticky-note', test: k => !/^(veg|planting|day|month|year):/.test(k) },
       ];
 
       // Sort keys within each group per the chosen order. 'recent'/'oldest'
@@ -2156,27 +2328,65 @@
 
       const sortLabel = notesPanelSort === 'recent' ? 'Newest activity'
         : notesPanelSort === 'oldest' ? 'Oldest activity' : 'By name';
+      const filterActive = (state.filter && state.filter !== 'all');
+      const filterNote = filterActive
+        ? ' <span class="text-accent-600">· ' + escapeHtml(noteTargetLabel(state.filter)) + '</span>'
+        : '';
+      const totalCount = keys.length + taskNotes.length;
       let html = '<div class="flex items-center justify-between mb-3">' +
-          '<span class="text-xs font-semibold text-slate-500">' + keys.length + ' note' + (keys.length === 1 ? '' : 's') + '</span>' +
+          '<span class="text-xs font-semibold text-slate-500">' + totalCount + ' note' + (totalCount === 1 ? '' : 's') + filterNote + '</span>' +
           '<button data-notes-sort class="text-[11px] font-semibold text-slate-500 hover:text-accent-600 transition flex items-center gap-1" title="Change sort order">' +
             '<i data-lucide="arrow-down-up" class="w-3.5 h-3.5"></i>' + sortLabel +
           '</button>' +
         '</div>';
 
+      if (!totalCount) {
+        html += '<p class="text-sm text-slate-400 text-center py-10">No notes match the current filter.</p>';
+        el.innerHTML = html;
+        return;
+      }
+
       groups.forEach(g => {
         const inGroup = sortKeys(keys.filter(g.test));
         if (!inGroup.length) return;
+        const gCollapsed = (state.notesCollapsedGroups || []).includes(g.id);
         html += '<div class="mb-5 last:mb-0">' +
-          '<div class="flex items-center gap-1.5 mb-2">' +
+          '<button data-note-group="' + g.id + '" class="w-full flex items-center gap-1.5 mb-2 group/ng">' +
+            '<i data-lucide="chevron-down" class="w-3.5 h-3.5 text-slate-400 transition-transform' + (gCollapsed ? ' -rotate-90' : '') + '"></i>' +
             '<i data-lucide="' + g.icon + '" class="w-4 h-4 text-accent-600"></i>' +
-            '<h3 class="text-xs font-bold uppercase tracking-wide text-slate-500">' + g.label + '</h3>' +
+            '<h3 class="text-xs font-bold uppercase tracking-wide text-slate-500 group-hover/ng:text-slate-700 transition">' + g.label + '</h3>' +
             '<span class="text-[10px] font-bold text-slate-300">' + inGroup.length + '</span>' +
-          '</div>' +
-          '<div class="space-y-2">' +
-          inGroup.map(k => noteCard(k)).join('') +
-          '</div>' +
+          '</button>' +
+          (gCollapsed ? '' :
+            '<div class="space-y-2">' +
+            inGroup.map(k => noteCard(k)).join('') +
+            '</div>') +
         '</div>';
       });
+
+      // Task-notes group: the free-text notes attached to individual tasks.
+      if (taskNotes.length) {
+        const sortTaskNotes = arr => arr.slice().sort((a, b) => {
+          if (notesPanelSort === 'label') return taskLabel(a).localeCompare(taskLabel(b));
+          const diff = (b.date || '').localeCompare(a.date || '');
+          return notesPanelSort === 'oldest' ? -diff : diff;
+        });
+        const inGroup = sortTaskNotes(taskNotes);
+        const gCollapsed = (state.notesCollapsedGroups || []).includes('task');
+        const nt = NOTE_TYPES.task;
+        html += '<div class="mb-5 last:mb-0">' +
+          '<button data-note-group="task" class="w-full flex items-center gap-1.5 mb-2 group/ng">' +
+            '<i data-lucide="chevron-down" class="w-3.5 h-3.5 text-slate-400 transition-transform' + (gCollapsed ? ' -rotate-90' : '') + '"></i>' +
+            '<i data-lucide="' + nt.icon + '" class="w-4 h-4 text-accent-600"></i>' +
+            '<h3 class="text-xs font-bold uppercase tracking-wide text-slate-500 group-hover/ng:text-slate-700 transition">' + nt.label + '</h3>' +
+            '<span class="text-[10px] font-bold text-slate-300">' + inGroup.length + '</span>' +
+          '</button>' +
+          (gCollapsed ? '' :
+            '<div class="space-y-2">' +
+            inGroup.map(t => taskNoteCard(t)).join('') +
+            '</div>') +
+        '</div>';
+      }
 
       el.innerHTML = html;
     }
@@ -2200,18 +2410,52 @@
             '<div class="note-content text-sm text-slate-600 break-words">' + noteHtml(e.html) + '</div>' +
           '</div>';
       }).join('');
+      const cardCollapsed = (state.notesCollapsedCards || []).includes(key);
       return '<div class="group/n flex items-start gap-2.5 rounded-xl border border-slate-100 bg-slate-50/50 px-3 py-2.5 cursor-pointer" data-note-card="' + escapeHtml(key) + '">' +
+          '<button data-note-card-toggle="' + escapeHtml(key) + '" class="text-slate-300 hover:text-slate-500 transition shrink-0 mt-0.5" title="' + (cardCollapsed ? 'Expand' : 'Collapse') + '">' +
+            '<i data-lucide="chevron-down" class="w-3.5 h-3.5 transition-transform' + (cardCollapsed ? ' -rotate-90' : '') + '"></i>' +
+          '</button>' +
           (dot || '<i data-lucide="sticky-note" class="w-3.5 h-3.5 text-amber-400 shrink-0 mt-0.5"></i>') +
           '<div class="min-w-0 flex-1">' +
             '<div class="flex items-center gap-1.5">' +
               '<div class="text-xs font-semibold text-slate-700 truncate">' + escapeHtml(noteTargetLabel(key)) + '</div>' +
               '<span class="text-[10px] font-bold text-slate-300">' + entries.length + '</span>' +
             '</div>' +
-            '<div class="space-y-1.5 mt-1">' + entriesHtml + '</div>' +
+            (cardCollapsed ? '' : '<div class="space-y-1.5 mt-1">' + entriesHtml + '</div>') +
           '</div>' +
           '<div class="flex items-center gap-1 shrink-0 opacity-0 group-hover/n:opacity-100 transition">' +
             '<button data-note="' + escapeHtml(key) + '" class="text-slate-300 hover:text-accent-600 transition" title="Add / edit notes"><i data-lucide="pencil" class="w-3.5 h-3.5"></i></button>' +
             '<button data-note-del="' + escapeHtml(key) + '" class="text-slate-300 hover:text-rose-500 transition" title="Delete all notes"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>' +
+          '</div>' +
+        '</div>';
+    }
+
+    // A card for a single task's free-text note. Clicking opens the task modal.
+    function taskNoteCard(t) {
+      const tt = TASK_TYPES[t.type] || TASK_TYPES.custom;
+      const cardKey = 'task:' + t.id;
+      const collapsed = (state.notesCollapsedCards || []).includes(cardKey);
+      const d = parseISO(t.date);
+      const dateStr = MONTHS_SHORT[d.getMonth()] + ' ' + d.getDate() + ', ' + d.getFullYear();
+      const dot = '<span class="w-2.5 h-2.5 rounded-full shrink-0 mt-1" style="background:' + taskColor(t) + '"></span>';
+      const body = '<div class="rounded-lg bg-white/70 border border-slate-100 px-2.5 py-1.5">' +
+          '<div class="text-[10px] text-slate-400 mb-0.5">' + escapeHtml(dateStr) + ' · ' + escapeHtml(tt.label) +
+            (isRecurring(t) ? ' · recurring' : '') + '</div>' +
+          '<div class="note-content text-sm text-slate-600 break-words">' + noteHtml(t.notes) + '</div>' +
+        '</div>';
+      return '<div class="group/n flex items-start gap-2.5 rounded-xl border border-slate-100 bg-slate-50/50 px-3 py-2.5 cursor-pointer" data-task-note="' + t.id + '">' +
+          '<button data-note-card-toggle="' + cardKey + '" class="text-slate-300 hover:text-slate-500 transition shrink-0 mt-0.5" title="' + (collapsed ? 'Expand' : 'Collapse') + '">' +
+            '<i data-lucide="chevron-down" class="w-3.5 h-3.5 transition-transform' + (collapsed ? ' -rotate-90' : '') + '"></i>' +
+          '</button>' +
+          dot +
+          '<div class="min-w-0 flex-1">' +
+            '<div class="flex items-center gap-1.5">' +
+              '<div class="text-xs font-semibold text-slate-700 truncate">' + escapeHtml(taskLabel(t)) + '</div>' +
+            '</div>' +
+            (collapsed ? '' : '<div class="space-y-1.5 mt-1">' + body + '</div>') +
+          '</div>' +
+          '<div class="flex items-center gap-1 shrink-0 opacity-0 group-hover/n:opacity-100 transition">' +
+            '<button data-task-note-edit="' + t.id + '" class="text-slate-300 hover:text-accent-600 transition" title="Open task"><i data-lucide="pencil" class="w-3.5 h-3.5"></i></button>' +
           '</div>' +
         '</div>';
     }
@@ -2227,6 +2471,12 @@
       // Amber day-note chip when the task's day has a note; click to view/edit.
       const noteChip = dayNote
         ? '<span data-note="' + dayKey + '" class="shrink-0 text-amber-500 hover:text-amber-600 transition" title="' + escapeHtml(dayNote) + '"><i data-lucide="sticky-note" class="w-4 h-4"></i></span>'
+        : '';
+      // Plant/variety note chip: prefer the variety note, else the crop note.
+      const plantKey = (t.plantingId && hasNote('planting:' + t.plantingId)) ? 'planting:' + t.plantingId
+        : (hasNote('veg:' + t.vegId) ? 'veg:' + t.vegId : '');
+      const plantNoteChip = plantKey
+        ? '<span data-note="' + plantKey + '" class="shrink-0 text-emerald-500 hover:text-emerald-600 transition" title="' + escapeHtml(noteLogText(plantKey)) + '"><i data-lucide="leaf" class="w-4 h-4"></i></span>'
         : '';
       // Planned vs done badge. When `toggleable`, it becomes a button that
       // flips completion in state (used by the Day view).
@@ -2257,6 +2507,7 @@
           '</div>' +
           badge +
           noteChip +
+          plantNoteChip +
           '<i data-lucide="chevron-right" class="w-4 h-4 text-slate-300 shrink-0"></i>' +
         '</button>';
     }
@@ -2783,6 +3034,7 @@
     function navigate(dir) {
       const d = parseISO(state.cursor);
       if (state.view === 'day') d.setDate(d.getDate() + dir);
+      else if (state.view === 'week') d.setDate(d.getDate() + 7 * dir);
       else if (state.view === 'month') d.setMonth(d.getMonth() + dir);
       else if (state.view === 'year') d.setFullYear(d.getFullYear() + dir);
       state.cursor = toISO(d);
@@ -3286,20 +3538,9 @@
       // Note buttons (crop or planting).
       const noteBtn = e.target.closest('[data-note]');
       if (noteBtn) { openNoteModal(noteBtn.dataset.note); return; }
-
-      const addPlantingBtn = e.target.closest('[data-action="addPlanting"]');
-      if (addPlantingBtn) {
-        const vegId = +addPlantingBtn.closest('[data-veg]').dataset.veg;
-        const input = document.querySelector('[data-planting-input="' + vegId + '"]');
-        if (input) { addPlanting(vegId, input.value); }
-        return;
-      }
     });
-    // Enter key in a planting input adds that planting; rename inputs commit on Enter/Escape.
+    // Rename inputs commit on Enter/Escape.
     document.getElementById('vegList').addEventListener('keydown', e => {
-      const addInput = e.target.closest('[data-planting-input]');
-      if (addInput && e.key === 'Enter') { addPlanting(+addInput.dataset.plantingInput, addInput.value); return; }
-
       const renameVeg = e.target.closest('[data-rename-veg]');
       if (renameVeg) {
         if (e.key === 'Enter') commitEditVeg(+renameVeg.dataset.renameVeg, renameVeg.value);
@@ -3542,6 +3783,25 @@
     });
     typeFilterMenu.addEventListener('click', e => {
       e.stopPropagation();
+      // Notes view: this menu filters note categories instead of task types.
+      if (state.view === 'notes') {
+        if (e.target.closest('[data-note-type-filter-clear]')) {
+          state.noteTypeFilter = [];
+        } else {
+          const row = e.target.closest('[data-note-type-filter]');
+          if (!row) return;
+          const key = row.dataset.noteTypeFilter;
+          const allKeys = Object.keys(NOTE_TYPES);
+          const set = new Set((state.noteTypeFilter && state.noteTypeFilter.length) ? state.noteTypeFilter : allKeys);
+          if (set.has(key)) set.delete(key); else set.add(key);
+          state.noteTypeFilter = (set.size === allKeys.length) ? [] : Array.from(set);
+        }
+        renderTypeFilter();
+        renderActiveView();
+        lucide.createIcons();
+        scheduleSave();
+        return;
+      }
       if (e.target.closest('[data-type-filter-clear]')) {
         state.typeFilter = [];
       } else {
@@ -3582,6 +3842,19 @@
       if (pill) { openTaskModal({ taskId: +pill.dataset.task, occ: pill.dataset.occ || null }); return; }
       const cell = e.target.closest('[data-day]');
       if (cell) { state.cursor = cell.dataset.day; setView('day'); }
+    });
+
+    document.getElementById('weekView').addEventListener('click', e => {
+      const noteBtn = e.target.closest('[data-note]');
+      if (noteBtn) { openNoteModal(noteBtn.dataset.note); return; }
+      const openDay = e.target.closest('[data-open-day]');
+      if (openDay) { state.cursor = openDay.dataset.openDay; setView('day'); return; }
+      const add = e.target.closest('[data-add-day]');
+      if (add) { openTaskModal({ date: add.dataset.addDay }); return; }
+      const pill = e.target.closest('[data-task]');
+      if (pill) { openTaskModal({ taskId: +pill.dataset.task, occ: pill.dataset.occ || null }); return; }
+      const cell = e.target.closest('[data-week-day]');
+      if (cell) { state.cursor = cell.dataset.weekDay; setView('day'); }
     });
 
     document.getElementById('dayView').addEventListener('click', e => {
@@ -3650,12 +3923,37 @@
         renderNotes();
         return;
       }
+      // Collapse / expand a whole note category.
+      const groupBtn = e.target.closest('[data-note-group]');
+      if (groupBtn) {
+        const id = groupBtn.dataset.noteGroup;
+        const set = new Set(state.notesCollapsedGroups || []);
+        if (set.has(id)) set.delete(id); else set.add(id);
+        state.notesCollapsedGroups = Array.from(set);
+        scheduleSave(); renderNotes(); lucide.createIcons();
+        return;
+      }
+      // Collapse / expand a single note card's entries.
+      const cardToggle = e.target.closest('[data-note-card-toggle]');
+      if (cardToggle) {
+        const key = cardToggle.dataset.noteCardToggle;
+        const set = new Set(state.notesCollapsedCards || []);
+        if (set.has(key)) set.delete(key); else set.add(key);
+        state.notesCollapsedCards = Array.from(set);
+        scheduleSave(); renderNotes(); lucide.createIcons();
+        return;
+      }
       const delBtn = e.target.closest('[data-note-del]');
       if (delBtn) {
         const key = delBtn.dataset.noteDel;
         if (confirm('Delete all notes for this item?')) clearNoteLog(key);
         return;
       }
+      // Task note: open the owning task in the task modal.
+      const taskEdit = e.target.closest('[data-task-note-edit]');
+      if (taskEdit) { openTaskModal({ taskId: +taskEdit.dataset.taskNoteEdit }); return; }
+      const taskCard = e.target.closest('[data-task-note]');
+      if (taskCard) { openTaskModal({ taskId: +taskCard.dataset.taskNote }); return; }
       const editBtn = e.target.closest('[data-note]');
       if (editBtn) { openNoteModal(editBtn.dataset.note); return; }
       const card = e.target.closest('[data-note-card]');
@@ -3774,61 +4072,15 @@
       state.location = { zip: '48197', zone: '6a', lat: 42.2412, lon: -83.6129, actualLastFrost: (new Date().getFullYear()) + '-05-11', actualFirstFrost: '' };
       seq = 1;
 
-      addVeg('Tomato');
-      addVeg('Lettuce');
-      const tomato = state.veggies[0], lettuce = state.veggies[1];
       const y = new Date().getFullYear();
 
-      // Crop-level colors chosen to look like the real produce.
-      tomato.color = '#dc2626';   // ripe tomato red
-      lettuce.color = '#65a30d';  // leafy green
-      tomato.icon = 'tomato';     // custom crop icon
-      lettuce.icon = 'leafy-green';
-
-      // Tomato varieties (strains of the same crop).
-      const brandywine = { id: seq++, name: 'Brandywine', color: '#9d174d' }; // deep wine-pink heirloom
-      const sungold = { id: seq++, name: 'Sungold', color: '#f59e0b' };       // golden-orange cherry
-      tomato.plantings.push(brandywine, sungold);
-
-      // Lettuce succession sowings.
-      const lettuce1 = { id: seq++, name: 'Succession 1', color: '#4d7c0f' }; // darker leaf green
-      const lettuce2 = { id: seq++, name: 'Succession 2', color: '#84cc16' }; // bright lime
-      lettuce.plantings.push(lettuce1, lettuce2);
-
-      state.tasks.push(
-        // Tomatoes: start indoors ~7 wks before the ~May 11 last frost, set out late May.
-        { id: seq++, vegId: tomato.id, plantingId: brandywine.id, type: 'sow_indoors', date: y + '-03-25', notes: 'Start seeds indoors under lights', done: true, doneDate: y + '-03-26' },
-        { id: seq++, vegId: tomato.id, plantingId: brandywine.id, type: 'transplant', date: y + '-05-24', notes: 'Set out after last frost; harden off first', done: true, doneDate: y + '-05-25' },
-        { id: seq++, vegId: tomato.id, plantingId: sungold.id, type: 'sow_indoors', date: y + '-03-25', notes: 'Cherry type', done: true, doneDate: y + '-03-26' },
-        { id: seq++, vegId: tomato.id, plantingId: sungold.id, type: 'transplant', date: y + '-05-24', notes: 'Transplant alongside Brandywine', done: true, doneDate: y + '-05-25' },
-        // Lettuce: cool-season, direct sown as soon as soil is workable.
-        { id: seq++, vegId: lettuce.id, plantingId: lettuce1.id, type: 'direct_sow', date: y + '-04-15', notes: 'First sowing once soil workable', done: true, doneDate: y + '-04-16' },
-        { id: seq++, vegId: lettuce.id, plantingId: lettuce2.id, type: 'direct_sow', date: y + '-05-06', notes: 'Sow 3 weeks later', done: true, doneDate: y + '-05-07' }
-      );
-
-      // Example notes on a crop, a variety, a day, and a month. Notes are a
-      // LOG of timestamped entries; helper builds realistic dated entries so
-      // the sort/timestamp features have meaningful demo data.
+      // ----- Helpers -----
+      // Notes are a LOG of timestamped entries; helper builds realistic dated
+      // entries so the sort/timestamp features have meaningful demo data.
       const mkEntry = (dateISO, html, hour) => ({
         id: 'n' + Math.random().toString(36).slice(2, 9),
         html, ts: new Date(dateISO + 'T' + String(hour ?? 9).padStart(2, '0') + ':15:00').getTime()
       });
-      state.notes['veg:' + tomato.id] = [
-        mkEntry(y + '-03-20', 'Heavy feeders — amend beds with compost before planting.', 8),
-        mkEntry(y + '-06-15', 'Suckers pruned on Brandywine; caged and tied up. Growth looks strong.', 17),
-      ];
-      state.notes['planting:' + brandywine.id] = [
-        mkEntry(y + '-05-25', 'Indeterminate heirloom; needs staking and pruning of suckers.', 10),
-      ];
-      state.notes['day:' + y + '-05-24'] = [
-        mkEntry(y + '-05-23', 'Tomato transplant day tomorrow — check overnight lows are above 50°F.', 20),
-        mkEntry(y + '-05-24', 'Set out all four tomato plants. Watered in with fish emulsion.', 18),
-      ];
-      state.notes['month:' + y + '-03'] = [
-        mkEntry(y + '-03-01', 'Seed-starting month: keep grow lights ~2in above seedlings.', 9),
-      ];
-
-      // ----- A fuller garden: more crops, varieties & a season of tasks -----
       const mkVeg = (name, color, icon) => { const v = { id: seq++, name, color, icon: icon || DEFAULT_VEG_ICON, plantings: [] }; state.veggies.push(v); return v; };
       const mkPlanting = (veg, name, color) => { const p = { id: seq++, name, color }; veg.plantings.push(p); return p; };
       const task = (veg, planting, type, date, notes, done, doneDate) =>
@@ -3848,78 +4100,134 @@
         });
       };
 
-      // ----- Recurring harvests & upkeep (generated, not hardcoded) -----
-      // Cut-and-come-again lettuce: pick outer leaves ~weekly until it bolts.
-      repeatTask(lettuce, lettuce1, 'harvest', '06-08', '06-29', 7, 'Cut outer leaves (cut-and-come-again)');
-      repeatTask(lettuce, lettuce2, 'harvest', '06-26', '07-13', 7, 'Cut outer leaves before summer heat bolts it');
-      // Indeterminate tomatoes: pick every ~3 days once ripening starts.
-      repeatTask(tomato, sungold,    'harvest', '08-01', '10-05', 3, 'Pick ripe cherries (every few days)');
-      repeatTask(tomato, brandywine, 'harvest', '08-25', '10-05', 3, 'Pick ripe slicers (every few days)');
+      // =====================================================================
+      // TOMATO — indeterminate slicer + cherry. Start indoors ~7 wks before
+      // the ~May 11 last frost; set out late May; harvest into fall.
+      // =====================================================================
+      const tomato = mkVeg('Tomato', '#dc2626', 'tomato');
+      const brandywine = mkPlanting(tomato, 'Brandywine', '#9d174d'); // deep wine-pink heirloom
+      const sungold = mkPlanting(tomato, 'Sungold', '#f59e0b');       // golden-orange cherry
+      task(tomato, brandywine, 'sow_indoors', y + '-03-25', 'Start seeds indoors under lights, 7 wks before last frost');
+      task(tomato, brandywine, 'transplant', y + '-05-24', 'Set out after last frost; harden off first, cage & stake');
+      task(tomato, brandywine, 'fertilize', y + '-06-20', 'Side-dress once first fruit sets');
+      task(tomato, sungold, 'sow_indoors', y + '-03-25', 'Cherry type — same start as Brandywine');
+      task(tomato, sungold, 'transplant', y + '-05-24', 'Transplant alongside Brandywine');
+      repeatTask(tomato, sungold,    'prune',   '06-10', '08-20', 7,  'Prune suckers weekly on indeterminate vines');
+      repeatTask(tomato, brandywine, 'prune',   '06-10', '08-20', 7,  'Prune suckers weekly, keep 1-2 main leaders');
+      repeatTask(tomato, sungold,    'harvest', '08-01', '10-05', 3,  'Pick ripe cherries (every few days)');
+      repeatTask(tomato, brandywine, 'harvest', '08-25', '10-05', 3,  'Pick ripe slicers (every few days)');
+      task(tomato, null, 'custom', y + '-10-10', 'Pull spent vines after first frost; compost healthy foliage');
 
-      // POTATOES — early & maincrop.
-      const potato = mkVeg('Potato', '#92400e', 'potato');            // earthy brown skin
-      const yukon = mkPlanting(potato, 'Yukon Gold', '#ca8a04');  // golden flesh
-      const russet = mkPlanting(potato, 'Russet', '#78350f');     // dark russet brown
-      task(potato, null, 'custom', y + '-04-08', 'Loosen soil, mix in compost', true, y + '-04-10');
-      task(potato, yukon, 'direct_sow', y + '-04-22', 'Plant seed potatoes, 4in deep (~2-3 wks before last frost)', true, y + '-04-23');
-      task(potato, yukon, 'fertilize', y + '-05-26', 'Hill up and side-dress', true, y + '-05-27');
-      task(potato, yukon, 'harvest', y + '-07-30', 'New potatoes', true, y + '-08-01');
-      task(potato, russet, 'direct_sow', y + '-04-28', 'Maincrop, wider spacing', true, y + '-04-29');
-      task(potato, russet, 'harvest', y + '-09-25', 'Cure for storage');
+      // =====================================================================
+      // LETTUCE — cool-season succession sowings, cut-and-come-again.
+      // =====================================================================
+      const lettuce = mkVeg('Lettuce', '#65a30d', 'leafy-green');
+      const lettuce1 = mkPlanting(lettuce, 'Spring — Buttercrunch', '#4d7c0f'); // darker leaf green
+      const lettuce2 = mkPlanting(lettuce, 'Spring — Salad Bowl', '#84cc16');   // bright lime
+      const lettuce3 = mkPlanting(lettuce, 'Fall — Winter Density', '#3f6212'); // fall crop
+      task(lettuce, lettuce1, 'direct_sow', y + '-04-15', 'First sowing once soil is workable');
+      task(lettuce, lettuce2, 'direct_sow', y + '-05-06', 'Sow 3 weeks later to stagger harvest');
+      task(lettuce, lettuce3, 'direct_sow', y + '-08-20', 'Fall sowing once heat breaks');
+      repeatTask(lettuce, lettuce1, 'harvest', '06-08', '06-29', 7,  'Cut outer leaves (cut-and-come-again)');
+      repeatTask(lettuce, lettuce2, 'harvest', '06-26', '07-13', 7,  'Cut outer leaves before summer heat bolts it');
+      repeatTask(lettuce, lettuce3, 'harvest', '09-25', '10-25', 7,  'Fall harvest — tolerates light frost');
 
-      // PEPPERS — sweet & hot.
-      const pepper = mkVeg('Pepper', '#ea580c', 'pepper');                    // fiery red-orange
-      const bell = mkPlanting(pepper, 'California Wonder', '#16a34a'); // green bell
-      const jalapeno = mkPlanting(pepper, 'Jalapeño', '#166534');      // deep jalapeño green
-      task(pepper, bell, 'sow_indoors', y + '-03-15', 'Needs warmth to germinate (8-10 wks before set-out)', true, y + '-03-16');
-      task(pepper, bell, 'transplant', y + '-05-28', 'Wait for warm soil, nights above 55°F', true, y + '-05-29');
-      task(pepper, jalapeno, 'sow_indoors', y + '-03-15', '', true, y + '-03-16');
-      task(pepper, jalapeno, 'transplant', y + '-05-28', '', true, y + '-05-29');
-      // Peppers keep producing — pick weekly through the season.
-      repeatTask(pepper, bell,     'harvest', '08-05', '10-05', 7, 'Pick green or let ripen red (weekly)');
-      repeatTask(pepper, jalapeno, 'harvest', '07-25', '10-05', 7, 'Pick firm, glossy pods (weekly)');
+      // =====================================================================
+      // POTATO — early (Yukon) & maincrop (Russet). Chit, plant, hill, dig.
+      // =====================================================================
+      const potato = mkVeg('Potato', '#92400e', 'potato');
+      const yukon = mkPlanting(potato, 'Yukon Gold (early)', '#ca8a04');
+      const russet = mkPlanting(potato, 'Russet (maincrop)', '#78350f');
+      task(potato, null, 'custom', y + '-04-05', 'Chit seed potatoes in a bright, cool spot for ~2 weeks');
+      task(potato, null, 'custom', y + '-04-08', 'Loosen soil, mix in compost, dig trenches');
+      task(potato, yukon, 'direct_sow', y + '-04-22', 'Plant seed potatoes 4in deep (~2-3 wks before last frost)');
+      task(potato, yukon, 'fertilize', y + '-05-26', 'Hill up and side-dress when shoots reach 8in');
+      task(potato, yukon, 'harvest', y + '-07-30', 'New potatoes once plants flower');
+      task(potato, russet, 'direct_sow', y + '-04-28', 'Maincrop, wider spacing for storage tubers');
+      task(potato, russet, 'fertilize', y + '-06-05', 'Hill again as vines grow');
+      task(potato, russet, 'harvest', y + '-09-25', 'Dig after tops die back; cure 1-2 wks for storage');
 
-      // GARLIC — planted last fall, harvested this summer.
-      const garlic = mkVeg('Garlic', '#a8a29e', 'garlic');                 // pale papery skin
-      const hardneck = mkPlanting(garlic, 'Music (hardneck)', '#a78bfa'); // purple-streaked wrapper
-      task(garlic, hardneck, 'prune', y + '-06-22', 'Cut scapes to boost bulbs', true, y + '-06-23');
-      task(garlic, hardneck, 'harvest', y + '-07-22', 'When lower leaves brown', true, y + '-07-24');
-      task(garlic, hardneck, 'direct_sow', y + '-10-15', 'Plant cloves ~3-4 wks before ground freezes');
+      // =====================================================================
+      // GARLIC — hardneck, planted last fall, scapes in June, harvest July,
+      // replanted this October for next year.
+      // =====================================================================
+      const garlic = mkVeg('Garlic', '#a8a29e', 'garlic');
+      const hardneck = mkPlanting(garlic, 'Music (hardneck)', '#a78bfa');
+      task(garlic, hardneck, 'fertilize', y + '-04-05', 'Top-dress overwintered garlic with blood meal as it greens up');
+      task(garlic, hardneck, 'prune', y + '-06-22', 'Cut scapes to redirect energy into bulbs (eat the scapes!)');
+      task(garlic, hardneck, 'harvest', y + '-07-22', 'Lift when lower 3-4 leaves brown; cure in shade');
+      task(garlic, hardneck, 'direct_sow', y + '-10-15', 'Plant cloves 2in deep, ~3-4 wks before ground freezes; mulch');
 
-      // ONION — from sets.
-      const onion = mkVeg('Onion', '#b45309', 'onion');                        // golden-brown papery skin
-      const yellow = mkPlanting(onion, 'Yellow Sweet Spanish', '#eab308'); // yellow
-      const red = mkPlanting(onion, 'Red Burgundy', '#9f1239');           // deep red-purple
-      task(onion, yellow, 'direct_sow', y + '-04-20', 'Plant sets 1in deep', true, y + '-04-21');
-      task(onion, yellow, 'harvest', y + '-08-30', 'When tops flop over');
-      task(onion, red, 'direct_sow', y + '-04-20', '', true, y + '-04-21');
-      task(onion, red, 'harvest', y + '-09-05', '');
+      // =====================================================================
+      // ONION — long-day from sets, yellow storage & red.
+      // =====================================================================
+      const onion = mkVeg('Onion', '#b45309', 'onion');
+      const yellow = mkPlanting(onion, 'Yellow Sweet Spanish', '#eab308');
+      const red = mkPlanting(onion, 'Red Burgundy', '#9f1239');
+      task(onion, yellow, 'direct_sow', y + '-04-20', 'Plant sets 1in deep, 4in apart');
+      task(onion, yellow, 'fertilize', y + '-05-25', 'Nitrogen feed every 2-3 wks until bulbing starts');
+      task(onion, yellow, 'harvest', y + '-08-30', 'When ~half the tops flop; cure 2 wks before storing');
+      task(onion, red, 'direct_sow', y + '-04-20', 'Plant alongside yellow');
+      task(onion, red, 'harvest', y + '-09-05', 'When tops flop over');
 
-      // STRAWBERRIES — perennial bed.
-      const strawberry = mkVeg('Strawberry', '#e11d48', 'strawberry-veg');                     // berry red
-      const everbearing = mkPlanting(strawberry, 'Albion (everbearing)', '#fb7185'); // soft strawberry pink
-      task(strawberry, null, 'custom', y + '-04-16', 'Weed and topdress the perennial bed', true, y + '-04-17');
-      task(strawberry, everbearing, 'transplant', y + '-04-26', 'Set crowns at soil level', true, y + '-04-27');
-      task(strawberry, everbearing, 'fertilize', y + '-06-05', 'Feed after first flush', true, y + '-06-06');
-      // Everbearing berries ripen continuously — pick ~twice a week.
+      // =====================================================================
+      // STRAWBERRY — everbearing perennial bed, fruits into fall.
+      // =====================================================================
+      const strawberry = mkVeg('Strawberry', '#e11d48', 'strawberry-veg');
+      const everbearing = mkPlanting(strawberry, 'Albion (everbearing)', '#fb7185');
+      task(strawberry, null, 'custom', y + '-04-16', 'Weed and topdress the perennial bed; pull winter mulch back');
+      task(strawberry, everbearing, 'transplant', y + '-04-26', 'Set new crowns at soil level (roots down, crown exposed)');
+      task(strawberry, everbearing, 'fertilize', y + '-06-05', 'Balanced feed after first flush of fruit');
       repeatTask(strawberry, everbearing, 'harvest', '06-26', '10-05', 4, 'Pick ripe berries (twice a week)');
+      task(strawberry, null, 'custom', y + '-11-01', 'Mulch with straw for winter once dormant');
 
-      // BASIL — succession for continuous leaves.
-      const basil = mkVeg('Basil', '#15803d', 'leaf');                  // rich herb green
-      const genovese = mkPlanting(basil, 'Genovese', '#22c55e'); // bright basil leaf
-      task(basil, genovese, 'sow_indoors', y + '-04-10', '', true, y + '-04-11');
-      task(basil, genovese, 'transplant', y + '-05-28', 'Frost-tender; set out with peppers', true, y + '-05-29');
-      // Pinch/harvest weekly to keep it bushy and prevent flowering.
-      repeatTask(basil, genovese, 'prune', '06-18', '07-16', 7, 'Pinch tops to bush out (weekly)');
+      // =====================================================================
+      // BASIL — Genovese, tender; started indoors, pinched to stay bushy.
+      // =====================================================================
+      const basil = mkVeg('Basil', '#15803d', 'leaf');
+      const genovese = mkPlanting(basil, 'Genovese', '#22c55e');
+      task(basil, genovese, 'sow_indoors', y + '-04-10', 'Start indoors on a warm windowsill');
+      task(basil, genovese, 'transplant', y + '-05-28', 'Frost-tender; set out with peppers once nights are warm');
+      repeatTask(basil, genovese, 'prune',   '06-18', '07-16', 7, 'Pinch tops to bush out (weekly)');
       repeatTask(basil, genovese, 'harvest', '07-20', '09-15', 7, 'Cut sprigs before it flowers (weekly)');
 
-      // RADISH — fast succession crop.
-      const radish = mkVeg('Radish', '#e11d48', 'beet');                 // radish-skin red
-      const cherry = mkPlanting(radish, 'Cherry Belle', '#f43f5e'); // bright cherry-red
-      task(radish, cherry, 'direct_sow', y + '-04-15', 'Sow as soon as soil is workable', true, y + '-04-16');
-      task(radish, cherry, 'harvest', y + '-05-15', 'Ready in ~28 days', true, y + '-05-16');
-      task(radish, cherry, 'direct_sow', y + '-09-05', 'Fall sowing for cooler roots');
-      task(radish, cherry, 'harvest', y + '-10-05', 'Fall harvest before hard frost');
+      // =====================================================================
+      // RADISH — fast spring & fall succession crop.
+      // =====================================================================
+      const radish = mkVeg('Radish', '#e11d48', 'beet');
+      const cherry = mkPlanting(radish, 'Cherry Belle (spring)', '#f43f5e');
+      const daikon = mkPlanting(radish, 'Watermelon (fall)', '#ec4899');
+      task(radish, cherry, 'direct_sow', y + '-04-15', 'Sow as soon as soil is workable, 1/2in deep');
+      task(radish, cherry, 'harvest', y + '-05-15', 'Ready in ~28 days; pull before they get pithy');
+      task(radish, daikon, 'direct_sow', y + '-09-05', 'Fall sowing for sweeter, cooler-weather roots');
+      task(radish, daikon, 'harvest', y + '-10-20', 'Fall harvest before a hard freeze');
+
+      // =====================================================================
+      // CARROT — Nantes; slow to germinate, thinned, spring & fall sowings.
+      // =====================================================================
+      const carrot = mkVeg('Carrot', '#f97316', 'carrot-veg');
+      const nantes = mkPlanting(carrot, 'Nantes (spring)', '#fb923c');
+      const danvers = mkPlanting(carrot, 'Danvers (fall)', '#ea580c');
+      task(carrot, nantes, 'direct_sow', y + '-04-18', 'Sow shallow in loose, stone-free soil; keep surface moist');
+      task(carrot, nantes, 'custom', y + '-05-10', 'Thin seedlings to 2in apart once true leaves appear');
+      task(carrot, nantes, 'harvest', y + '-07-05', 'Pull when shoulders are ~3/4in across');
+      task(carrot, danvers, 'direct_sow', y + '-07-20', 'Fall sowing; carrots sweeten after light frost');
+      task(carrot, danvers, 'custom', y + '-08-15', 'Thin fall carrots and mulch to keep soil cool');
+      task(carrot, danvers, 'harvest', y + '-10-15', 'Harvest after a couple of frosts for best sweetness');
+
+      // =====================================================================
+      // PEPPER — sweet bell & hot jalapeño; slow-starting, heat-loving.
+      // =====================================================================
+      const pepper = mkVeg('Pepper', '#ea580c', 'pepper');
+      const bell = mkPlanting(pepper, 'California Wonder', '#16a34a');
+      const jalapeno = mkPlanting(pepper, 'Jalapeño', '#166534');
+      task(pepper, bell, 'sow_indoors', y + '-03-15', 'Needs warmth to germinate (8-10 wks before set-out); use a heat mat');
+      task(pepper, bell, 'transplant', y + '-05-28', 'Wait for warm soil, nights above 55°F');
+      task(pepper, bell, 'fertilize', y + '-06-25', 'Feed with calcium to avoid blossom-end rot');
+      task(pepper, jalapeno, 'sow_indoors', y + '-03-15', 'Start with the bells under lights');
+      task(pepper, jalapeno, 'transplant', y + '-05-28', 'Set out once frost danger is fully past');
+      repeatTask(pepper, bell,     'harvest', '08-05', '10-05', 7, 'Pick green or let ripen red (weekly)');
+      repeatTask(pepper, jalapeno, 'harvest', '07-25', '10-05', 7, 'Pick firm, glossy pods (weekly)');
 
       // ----- Drip-irrigation watering schedule (backyard garden) -----
       // A timer-driven drip system waters each bed, but only while that crop is
@@ -3961,29 +4269,54 @@
       waterBed(basil,      '05-28', '08-12', 'herb bed');         // transplant → harvest
       waterBed(tomato,     '05-24', '09-25', 'tomato bed');       // transplant → end of harvest
       waterBed(lettuce,    '04-15', '06-26', 'salad bed');        // sowing → before it bolts in heat
+      waterBed(lettuce,    '08-20', '10-25', 'salad bed');        // fall sowing
       waterBed(radish,     '04-15', '05-15', 'salad bed');        // fast spring crop
-      waterBed(radish,     '09-05', '10-05', 'salad bed');        // fall sowing
+      waterBed(radish,     '09-05', '10-20', 'salad bed');        // fall sowing
+      waterBed(carrot,     '04-18', '07-05', 'root bed');         // spring carrots
+      waterBed(carrot,     '07-20', '10-15', 'root bed');         // fall carrots
 
-      // A few helpful notes across the new crops.
+      // ----- Notes across crops, varieties, days, months & the year -----
+      state.notes['year:' + y] = [
+        mkEntry(y + '-01-05', 'Zone 6a (Ypsilanti). Last spring frost ~May 11, first fall frost ~Oct 10 — plan the whole season around those two dates.', 9),
+        mkEntry(y + '-01-06', 'Goal this year: staggered lettuce/radish/carrot sowings so the salad bed never sits empty.', 10),
+      ];
+      state.notes['veg:' + tomato.id] = [
+        mkEntry(y + '-03-20', 'Heavy feeders — amend beds with compost before planting.', 8),
+        mkEntry(y + '-06-01', 'Drip system: 1/4in emitters, run on a hose-timer before sunrise to cut evaporation.', 6),
+        mkEntry(y + '-06-15', 'Suckers pruned on Brandywine; caged and tied up. Growth looks strong.', 17),
+      ];
+      state.notes['planting:' + brandywine.id] = [
+        mkEntry(y + '-05-25', 'Indeterminate heirloom; needs staking and pruning of suckers. Prone to cracking after rain.', 10),
+      ];
+      state.notes['veg:' + potato.id] = [
+        mkEntry(y + '-04-08', 'Never plant where tomatoes/peppers grew last year (same family — disease).', 9),
+      ];
       state.notes['veg:' + garlic.id] = [
-        mkEntry(y + '-06-22', 'Plant in fall, mulch heavily, harvest mid-summer. Stop watering ~2 weeks before harvest so bulbs cure.', 11),
+        mkEntry(y + '-06-22', 'Stop watering ~2 weeks before harvest so bulbs cure well.', 11),
         mkEntry(y + '-07-24', 'Harvested — 20 good bulbs, curing in the garage on screens.', 16),
       ];
+      state.notes['veg:' + onion.id] = [
+        mkEntry(y + '-04-20', 'Long-day varieties for the north. Stop watering once tops flop so bulbs firm up.', 9),
+      ];
       state.notes['veg:' + strawberry.id] = [
-        mkEntry(y + '-04-16', 'Perennial — renovate the bed after fruiting each year.', 10),
+        mkEntry(y + '-04-16', 'Perennial — renovate the bed after fruiting each year; pinch first-year flowers on new crowns.', 10),
+      ];
+      state.notes['veg:' + carrot.id] = [
+        mkEntry(y + '-04-18', 'Germination is slow (2-3 wks). Cover the row with a board or burlap to hold moisture until sprouts show.', 8),
       ];
       state.notes['planting:' + jalapeno.id] = [
-        mkEntry(y + '-07-25', 'Leave on plant longer for extra heat; corking is normal.', 12),
+        mkEntry(y + '-07-25', 'Leave on plant longer for extra heat; corking (light stripes) is normal and desirable.', 12),
+      ];
+      state.notes['month:' + y + '-03'] = [
+        mkEntry(y + '-03-01', 'Seed-starting month: keep grow lights ~2in above seedlings; peppers & tomatoes go under lights now.', 9),
       ];
       state.notes['month:' + y + '-07'] = [
-        mkEntry(y + '-07-01', 'Peak harvest month — keep everything well watered.', 8),
+        mkEntry(y + '-07-01', 'Peak harvest month — keep everything well watered and pick often to keep plants producing.', 8),
       ];
-      state.notes['veg:' + onion.id] = [
-        mkEntry(y + '-04-20', 'Stop watering once tops flop over so bulbs firm up before harvest.', 9),
+      state.notes['day:' + y + '-05-24'] = [
+        mkEntry(y + '-05-23', 'Tomato transplant day tomorrow — check overnight lows are above 50°F.', 20),
+        mkEntry(y + '-05-24', 'Set out all tomatoes. Watered in with fish emulsion.', 18),
       ];
-      state.notes['veg:' + tomato.id].push(
-        mkEntry(y + '-06-01', 'Drip system: 1/4in emitters, run on a hose-timer before sunrise to cut evaporation.', 6)
-      );
 
       // Mark every task (and recurring occurrence) scheduled before today as
       // done, so the demo shows a season already in progress.
