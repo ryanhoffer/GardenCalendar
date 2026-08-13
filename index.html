@@ -262,6 +262,10 @@
             <button id="typeFilterBtn" type="button" class="px-3 py-2 rounded-lg text-xs font-semibold border border-slate-200 bg-slate-50 outline-none hover:border-accent-500 transition flex items-center gap-1.5 max-w-[170px]"></button>
             <div id="typeFilterMenu" class="hidden absolute right-0 mt-1 w-52 bg-white rounded-xl border border-slate-200 shadow-lg py-1 z-30 max-h-80 overflow-auto"></div>
           </div>
+          <div class="relative" id="locationFilterWrap">
+            <button id="locationFilterBtn" type="button" class="px-3 py-2 rounded-lg text-xs font-semibold border border-slate-200 bg-slate-50 outline-none hover:border-accent-500 transition flex items-center gap-1.5 max-w-[170px]"></button>
+            <div id="locationFilterMenu" class="hidden absolute right-0 mt-1 w-56 bg-white rounded-xl border border-slate-200 shadow-lg py-1 z-30 max-h-80 overflow-auto"></div>
+          </div>
           <button id="addTaskBtn" class="px-4 py-2 rounded-lg text-xs font-semibold bg-accent-600 text-white hover:bg-accent-700 shadow-sm transition flex items-center gap-1.5">
             <i data-lucide="calendar-plus" class="w-3.5 h-3.5"></i> Add Task
           </button>
@@ -296,7 +300,7 @@
             <select id="taskVeg" class="w-full px-3 py-2 rounded-lg text-sm border border-slate-200 bg-slate-50 outline-none focus:border-accent-500 focus:ring-1 focus:ring-accent-500"></select>
           </div>
           <div>
-            <label class="block text-xs font-semibold text-slate-600 mb-1">Variety / planting</label>
+            <label class="block text-xs font-semibold text-slate-600 mb-1">Planting</label>
             <select id="taskPlanting" class="w-full px-3 py-2 rounded-lg text-sm border border-slate-200 bg-slate-50 outline-none focus:border-accent-500 focus:ring-1 focus:ring-accent-500"></select>
           </div>
         </div>
@@ -328,6 +332,16 @@
           <label class="block text-xs font-semibold text-slate-600 mb-1">Repeat until</label>
           <input id="taskRepeatUntil" type="date" class="w-full px-3 py-2 rounded-lg text-sm border border-slate-200 bg-slate-50 outline-none focus:border-accent-500 focus:ring-1 focus:ring-accent-500" />
           <p class="text-[11px] text-slate-400 mt-1">The whole series counts as one task. Editing one occurrence lets you change just that day or the whole series.</p>
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-slate-600 mb-1">Location <span class="text-slate-400 font-normal">(optional)</span></label>
+          <div class="flex items-center gap-2">
+            <select id="taskLocation" class="flex-1 min-w-0 px-3 py-2 rounded-lg text-sm border border-slate-200 bg-slate-50 outline-none focus:border-accent-500 focus:ring-1 focus:ring-accent-500"></select>
+            <button type="button" id="taskLocationAdd" class="px-3 py-2 rounded-lg text-xs font-semibold bg-slate-100 text-slate-700 hover:bg-accent-100 hover:text-accent-700 transition flex items-center gap-1 shrink-0" title="Add a new location">
+              <i data-lucide="plus" class="w-3.5 h-3.5"></i> New
+            </button>
+          </div>
         </div>
 
         <div>
@@ -414,14 +428,14 @@
         <div>
           <button type="button" id="plantVarietiesToggle" class="w-full flex items-center gap-2 mb-2">
             <i data-lucide="git-branch" class="w-4 h-4 text-slate-400"></i>
-            <h4 class="text-xs font-bold uppercase tracking-wide text-slate-500">Varieties / successions</h4>
+            <h4 class="text-xs font-bold uppercase tracking-wide text-slate-500">Plantings</h4>
             <span class="text-[11px] text-slate-400 font-normal normal-case">optional</span>
             <i data-lucide="chevron-down" id="plantVarietiesChevron" class="w-4 h-4 text-slate-400 ml-auto transition-transform"></i>
           </button>
           <div id="plantVarietiesBody">
             <div id="plantVarieties" class="space-y-1.5 mb-2"></div>
             <div class="flex items-center gap-2">
-              <input id="plantVarietyInput" type="text" maxlength="24" placeholder="Add a variety…"
+              <input id="plantVarietyInput" type="text" maxlength="24" placeholder="Add a planting (variety or sowing)…"
                 class="flex-1 min-w-0 px-3 py-1.5 rounded-lg text-sm border border-slate-200 bg-slate-50 outline-none focus:border-accent-500 focus:ring-1 focus:ring-accent-500" />
               <button id="plantAddVariety" type="button" class="px-3 py-2 rounded-lg text-xs font-semibold bg-accent-100 text-accent-700 hover:bg-accent-200 transition shrink-0 flex items-center gap-1">
                 <i data-lucide="plus" class="w-3.5 h-3.5"></i> Add
@@ -458,6 +472,52 @@
         <button id="plantModalDelete" class="hidden px-3 py-2 rounded-lg text-xs font-semibold bg-rose-50 text-rose-600 hover:bg-rose-100 transition">Delete plant</button>
         <button id="plantModalCancel" class="ml-auto px-4 py-2 rounded-lg text-xs font-semibold bg-slate-100 text-slate-700 hover:bg-slate-200 transition">Cancel</button>
         <button id="plantModalSave" class="px-4 py-2 rounded-lg text-xs font-semibold bg-accent-600 text-white hover:bg-accent-700 shadow-sm transition">Save Plant</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Location editor: name + color + icon, mirroring the plant modal -->
+  <div id="locationModal" class="hidden fixed inset-0 z-40 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-xl w-full max-w-md max-h-[92vh] flex flex-col animate-fadeUp">
+      <div class="flex items-center gap-2 px-5 py-4 border-b border-slate-200">
+        <i data-lucide="map-pin" class="w-5 h-5 text-accent-600"></i>
+        <h3 id="locationModalTitle" class="font-bold">Add Location</h3>
+        <button id="locationModalClose" class="ml-auto text-slate-400 hover:text-slate-700 transition">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <div class="px-5 py-4 space-y-5 overflow-y-auto">
+        <!-- Name + color -->
+        <div class="flex items-end gap-3">
+          <div class="flex-1 min-w-0">
+            <label class="block text-xs font-semibold text-slate-600 mb-1">Location name</label>
+            <input id="locationName" type="text" maxlength="32" placeholder="e.g. South Bed 16x4"
+              class="w-full px-3 py-2 rounded-lg text-sm border border-slate-200 bg-slate-50 outline-none focus:border-accent-500 focus:ring-1 focus:ring-accent-500" />
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-600 mb-1">Color</label>
+            <label class="relative flex items-center justify-center w-10 h-10 rounded-lg cursor-pointer border border-slate-200 bg-slate-50" id="locationColorSwatch" title="Pick color">
+              <span id="locationColorSwatchIcon" class="flex items-center justify-center"></span>
+              <input id="locationColor" type="color" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
+            </label>
+          </div>
+        </div>
+
+        <!-- Icon picker -->
+        <div>
+          <h4 class="flex items-center gap-2 mb-2 text-xs font-bold uppercase tracking-wide text-slate-500">
+            <i data-lucide="shapes" class="w-4 h-4 text-slate-400"></i> Icon
+          </h4>
+          <div id="locationIconGrid" class="flex flex-wrap gap-1.5"></div>
+        </div>
+      </div>
+
+      <div class="px-5 py-4 border-t border-slate-200 flex items-center gap-2">
+        <button id="locationModalDelete" class="hidden px-3 py-2 rounded-lg text-xs font-semibold bg-rose-50 text-rose-600 hover:bg-rose-100 transition">Delete</button>
+        <button id="locationModalNotes" class="hidden inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold bg-slate-100 text-slate-700 hover:bg-slate-200 transition"><i data-lucide="sticky-note" class="w-3.5 h-3.5"></i>Notes</button>
+        <button id="locationModalCancel" class="ml-auto px-4 py-2 rounded-lg text-xs font-semibold bg-slate-100 text-slate-700 hover:bg-slate-200 transition">Cancel</button>
+        <button id="locationModalSave" class="px-4 py-2 rounded-lg text-xs font-semibold bg-accent-600 text-white hover:bg-accent-700 shadow-sm transition">Save Location</button>
       </div>
     </div>
   </div>
@@ -520,11 +580,12 @@
     // Note categories for the Notes view filter. `test` matches a note key.
     const NOTE_TYPES = {
       plant:   { label: 'Plants',                  icon: 'carrot',         color: '#059669', test: k => k.startsWith('veg:') },
-      variety: { label: 'Varieties / successions', icon: 'git-branch',     color: '#0d9488', test: k => k.startsWith('planting:') },
+      variety: { label: 'Plantings',               icon: 'git-branch',     color: '#0d9488', test: k => k.startsWith('planting:') },
       day:     { label: 'Days',                    icon: 'calendar-days',  color: '#0ea5e9', test: k => k.startsWith('day:') },
       month:   { label: 'Months',                  icon: 'calendar-range', color: '#8b5cf6', test: k => k.startsWith('month:') },
       year:    { label: 'Years',                   icon: 'calendar',       color: '#d97706', test: k => k.startsWith('year:') },
-      other:   { label: 'Other',                   icon: 'sticky-note',    color: '#64748b', test: k => !/^(veg|planting|day|month|year):/.test(k) },
+      location:{ label: 'Locations',               icon: 'map-pin',        color: '#16a34a', test: k => k.startsWith('location:') },
+      other:   { label: 'Other',                   icon: 'sticky-note',    color: '#64748b', test: k => !/^(veg|planting|day|month|year|location):/.test(k) },
       task:    { label: 'Task notes',              icon: 'clipboard-list', color: '#ea580c', test: () => false },
     };
     // Which NOTE_TYPES a note key belongs to.
@@ -534,6 +595,18 @@
     }
 
     const VEG_COLORS = ['#059669','#0ea5e9','#8b5cf6','#f43f5e','#f59e0b','#14b8a6','#ec4899','#6366f1','#f97316','#84cc16'];
+
+    // Colors + icons a user can assign to a location (garden bed, greenhouse,
+    // etc.). Icons are garden/structure lucide glyphs, tinted to the location's
+    // color. `DEFAULT_LOC_ICON` is used for new/legacy locations.
+    const LOC_COLORS = ['#a16207','#65a30d','#0891b2','#7c3aed','#db2777','#ea580c','#0d9488','#4f46e5','#b45309','#16a34a'];
+    const DEFAULT_LOC_ICON = 'fence';
+    const LOC_ICONS = [
+      'fence','sprout','shovel','tractor','flower','flower-2','shrub','leaf',
+      'trees','tree-deciduous','tree-pine','warehouse','home','container','box',
+      'grid-2x2','layout-grid','square','rows-3','columns-3',
+      'sun','cloud-sun','droplets','droplet','map-pin','flame','bug','bird'
+    ].filter((v, i, a) => a.indexOf(v) === i);
 
     // Icons a user can assign to a plant. Kept to garden-appropriate lucide
     // glyphs; the chosen icon is tinted to the plant's color and shown wherever
@@ -892,6 +965,8 @@
       cursor: isoToday(),
       filter: 'all', // 'all' | 'veg:<id>' | 'planting:<id>'
       typeFilter: [], // array of task-type keys to show; empty = show all
+      locationFilter: [], // array of location names to show; empty = show all
+      taskLocations: [], // shared locations [{ name, icon, color }] across tasks
       noteTypeFilter: [], // array of note-type keys to show in Notes view; empty = show all
       notesCollapsedGroups: [], // note category ids collapsed in Notes view
       notesCollapsedCards: [],  // note keys whose entries are collapsed in Notes view
@@ -937,7 +1012,7 @@
     function persistState() {
       try {
         localStorage.setItem(STORAGE_KEY, JSON.stringify({
-          veggies: state.veggies, tasks: state.tasks, view: state.view, filter: state.filter, typeFilter: state.typeFilter, hiddenVegs: state.hiddenVegs, hiddenPlantings: state.hiddenPlantings, notes: state.notes, location: state.location, weather: { data: weatherCache, lastSync: weatherLastSync, version: WEATHER_SYNC_VERSION }, seq
+          veggies: state.veggies, tasks: state.tasks, view: state.view, filter: state.filter, typeFilter: state.typeFilter, locationFilter: state.locationFilter, taskLocations: state.taskLocations, hiddenVegs: state.hiddenVegs, hiddenPlantings: state.hiddenPlantings, notes: state.notes, location: state.location, weather: { data: weatherCache, lastSync: weatherLastSync, version: WEATHER_SYNC_VERSION }, seq
         }));
       } catch (e) {}
     }
@@ -963,10 +1038,32 @@
             // Retired "Prepare Beds" type now folds into "Other".
             if (t.type === 'prepare_beds') t.type = 'custom';
           });
+          // Collect any locations referenced by saved tasks that aren't yet
+          // in the shared list (keeps the dropdown in sync with imported data).
+          state.tasks.forEach(t => {
+            if (t.location && !state.taskLocations.some(l => l.name === t.location)) {
+              state.taskLocations.push({ name: t.location, icon: DEFAULT_LOC_ICON, color: LOC_COLORS[state.taskLocations.length % LOC_COLORS.length] });
+            }
+          });
         }
         if (typeof s.view === 'string') state.view = s.view;
         if (typeof s.filter === 'string') state.filter = s.filter;
         if (Array.isArray(s.typeFilter)) state.typeFilter = Array.from(new Set(s.typeFilter.map(k => k === 'prepare_beds' ? 'custom' : k)));
+        if (Array.isArray(s.taskLocations)) {
+          // Locations may be saved as plain strings (older data) or as
+          // { name, icon, color } objects. Normalize to objects and merge with
+          // any already collected from tasks (matching by name).
+          s.taskLocations.forEach((l, i) => {
+            const obj = typeof l === 'string'
+              ? { name: l, icon: DEFAULT_LOC_ICON, color: LOC_COLORS[i % LOC_COLORS.length] }
+              : { name: l.name, icon: l.icon || DEFAULT_LOC_ICON, color: l.color || LOC_COLORS[i % LOC_COLORS.length] };
+            if (!obj.name) return;
+            const existing = state.taskLocations.find(x => x.name === obj.name);
+            if (existing) { existing.icon = obj.icon; existing.color = obj.color; }
+            else state.taskLocations.unshift(obj);
+          });
+        }
+        if (Array.isArray(s.locationFilter)) state.locationFilter = s.locationFilter.filter(x => typeof x === 'string');
         if (Array.isArray(s.hiddenVegs)) state.hiddenVegs = s.hiddenVegs;
         if (Array.isArray(s.hiddenPlantings)) state.hiddenPlantings = s.hiddenPlantings;
         if (s.notes && typeof s.notes === 'object') state.notes = s.notes;
@@ -989,6 +1086,8 @@
     }
 
     function vegById(id) { return state.veggies.find(v => v.id === id); }
+    // A saved location object ({name, icon, color}) by its name, or null.
+    function locationByName(name) { return (state.taskLocations || []).find(l => l.name === name) || null; }
     // The lucide glyph for a plant, falling back to the default.
     function vegIconName(v) { return (v && v.icon) || DEFAULT_VEG_ICON; }
     // A small inline icon marker tinted to the plant's color — used wherever a
@@ -1288,8 +1387,11 @@
     }
     // Human label for a task: "Tomato" or "Tomato · Brandywine".
     function taskLabel(t) {
-      const veg = vegById(t.vegId);
-      const base = veg ? veg.name : 'Plant';
+      const veg = t.vegId != null ? vegById(t.vegId) : null;
+      // Tasks with no plant fall back to a generic label (their notes/type
+      // carry the meaning), rather than pretending to belong to a crop.
+      if (!veg) return t.vegId == null ? 'General' : 'Plant';
+      const base = veg.name;
       const p = t.plantingId ? plantingById(t.plantingId) : null;
       return p ? base + ' · ' + p.name : base;
     }
@@ -1299,7 +1401,7 @@
         const p = plantingById(t.plantingId);
         if (p && p.color) return p.color;
       }
-      const veg = vegById(t.vegId);
+      const veg = t.vegId != null ? vegById(t.vegId) : null;
       return veg ? veg.color : '#64748b';
     }
     // Task-type keys that currently have at least one task.
@@ -1312,6 +1414,9 @@
       // Task-type filter (multi-select). Empty array = show all types.
       const types = state.typeFilter || [];
       if (types.length) out = out.filter(t => types.includes(t.type));
+      // Location filter (multi-select). Empty array = show all locations.
+      const locs = state.locationFilter || [];
+      if (locs.length) out = out.filter(t => locs.includes(t.location || '__none__'));
       // My Plants visibility toggles: hide tasks for crops/varieties turned off.
       const hv = state.hiddenVegs || [];
       const hp = state.hiddenPlantings || [];
@@ -1320,6 +1425,10 @@
       // Plant / variety filter (legacy single-select dropdown).
       const f = state.filter || 'all';
       if (f === 'all') return out;
+      if (f === 'none') {
+        // Tasks not tied to any plant.
+        return out.filter(t => t.vegId == null);
+      }
       if (f.startsWith('veg:')) {
         const id = +f.slice(4);
         return out.filter(t => t.vegId === id);
@@ -1431,6 +1540,7 @@
       renderViewSwitcher();
       renderFilter();
       renderTypeFilter();
+      renderLocationFilter();
       renderTaskSummary();
       renderZone();
       renderPeriodLabel();
@@ -1445,7 +1555,7 @@
     // the filter reads visually like the plant list.
     function renderFilter() {
       // Validate current selection still exists; else fall back to "all".
-      const validValues = new Set(['all']);
+      const validValues = new Set(['all', 'none']);
       state.veggies.forEach(v => {
         validValues.add('veg:' + v.id);
         (v.plantings || []).forEach(p => validValues.add('planting:' + p.id));
@@ -1455,7 +1565,9 @@
       // Resolve the currently selected plant's color/icon/label for the button.
       const sel = state.filter;
       let curColor = '', curIcon = '', curLabel = 'All plants', curIsVariety = false;
-      if (sel.startsWith('veg:')) {
+      if (sel === 'none') {
+        curLabel = 'No plant';
+      } else if (sel.startsWith('veg:')) {
         const v = vegById(+sel.slice(4));
         if (v) { curColor = v.color; curIcon = vegIconName(v); curLabel = v.name; }
       } else if (sel.startsWith('planting:')) {
@@ -1468,9 +1580,11 @@
       // Crops show their color-tinted icon; varieties show a color dot instead.
       const btnIcon = !active
         ? '<i data-lucide="filter" class="w-4 h-4 text-slate-400 shrink-0"></i>'
-        : (curIsVariety
-            ? '<span class="w-2.5 h-2.5 rounded-full shrink-0" style="background:' + curColor + '"></span>'
-            : iconMarkup(curIcon, 'w-4 h-4 shrink-0', curColor));
+        : (sel === 'none'
+            ? '<i data-lucide="circle-slash" class="w-4 h-4 text-slate-400 shrink-0"></i>'
+            : (curIsVariety
+                ? '<span class="w-2.5 h-2.5 rounded-full shrink-0" style="background:' + curColor + '"></span>'
+                : iconMarkup(curIcon, 'w-4 h-4 shrink-0', curColor)));
       btn.innerHTML = btnIcon +
         '<span class="truncate">' + escapeHtml(curLabel) + '</span>' +
         '<i data-lucide="chevron-down" class="w-3.5 h-3.5 text-slate-400 shrink-0"></i>';
@@ -1486,14 +1600,18 @@
       let rows = '<button type="button" data-plant-filter="all" class="' + rowCls + '">' +
           '<i data-lucide="sprout" class="w-4 h-4 ' + (sel === 'all' ? 'text-accent-600' : 'text-slate-400') + ' shrink-0"></i>' +
           '<span>All plants</span>' + check(sel === 'all') +
+        '</button>' +
+        '<button type="button" data-plant-filter="none" class="' + rowCls + '">' +
+          '<i data-lucide="circle-slash" class="w-4 h-4 ' + (sel === 'none' ? 'text-accent-600' : 'text-slate-400') + ' shrink-0"></i>' +
+          '<span class="italic text-slate-600">No plant</span>' + check(sel === 'none') +
         '</button>';
-      state.veggies.forEach(v => {
+      state.veggies.slice().sort((a, b) => a.name.localeCompare(b.name)).forEach(v => {
         const vKey = 'veg:' + v.id;
         rows += '<button type="button" data-plant-filter="' + vKey + '" class="' + rowCls + '">' +
             iconMarkup(vegIconName(v), 'w-4 h-4 shrink-0', v.color) +
             '<span class="truncate">' + escapeHtml(v.name) + '</span>' + check(sel === vKey) +
           '</button>';
-        (v.plantings || []).forEach(p => {
+        (v.plantings || []).slice().sort((a, b) => a.name.localeCompare(b.name)).forEach(p => {
           const pKey = 'planting:' + p.id;
           const pColor = p.color || v.color;
           rows += '<button type="button" data-plant-filter="' + pKey + '" class="' + rowCls + ' pl-7">' +
@@ -1529,7 +1647,7 @@
       btn.classList.toggle('bg-accent-50', active);
 
       const menu = document.getElementById('typeFilterMenu');
-      const rows = Object.entries(TASK_TYPES).map(([key, tt]) => {
+      const rows = Object.entries(TASK_TYPES).sort((a, b) => a[1].label.localeCompare(b[1].label)).map(([key, tt]) => {
         // Empty selection means "all" — show every box checked on load.
         const on = !selected.length || selected.includes(key);
         return '<button type="button" data-type-filter="' + key + '" class="w-full flex items-center gap-2 px-3 py-1.5 text-left text-xs font-semibold hover:bg-slate-50 transition">' +
@@ -1564,7 +1682,7 @@
       btn.classList.toggle('bg-accent-50', active);
 
       const menu = document.getElementById('typeFilterMenu');
-      const rows = Object.entries(NOTE_TYPES).map(([key, nt]) => {
+      const rows = Object.entries(NOTE_TYPES).sort((a, b) => a[1].label.localeCompare(b[1].label)).map(([key, nt]) => {
         const on = !selected.length || selected.includes(key);
         return '<button type="button" data-note-type-filter="' + key + '" class="w-full flex items-center gap-2 px-3 py-1.5 text-left text-xs font-semibold hover:bg-slate-50 transition">' +
             '<span class="w-4 h-4 rounded flex items-center justify-center border ' + (on ? 'border-accent-500' : 'border-slate-300') + '" style="' + (on ? 'background:' + nt.color : '') + '">' +
@@ -1579,6 +1697,72 @@
           '<span class="text-[10px] font-bold uppercase tracking-wide text-slate-400">Show note types</span>' +
           '<button type="button" data-note-type-filter-clear class="text-[10px] font-bold text-accent-600 hover:text-accent-700">All</button>' +
         '</div>' + rows;
+    }
+
+    // Multi-select filter by task location. Populated from state.taskLocations,
+    // plus a "No location" bucket for tasks without one. Empty selection = all.
+    function renderLocationFilter() {
+      const btn = document.getElementById('locationFilterBtn');
+      const menu = document.getElementById('locationFilterMenu');
+      const locs = (state.taskLocations || []).slice().sort((a, b) => a.name.localeCompare(b.name));
+      const names = locs.map(l => l.name);
+      // Prune any stale selections that no longer correspond to a location.
+      const valid = new Set([...names, '__none__']);
+      state.locationFilter = (state.locationFilter || []).filter(l => valid.has(l));
+      const selected = state.locationFilter;
+      const active = selected.length > 0;
+
+      const label = !selected.length
+        ? 'All locations'
+        : (selected.length === 1
+            ? (selected[0] === '__none__' ? 'No location' : selected[0])
+            : selected.length + ' locations');
+      btn.innerHTML =
+        '<i data-lucide="map-pin" class="w-4 h-4 ' + (active ? 'text-accent-600' : 'text-slate-400') + '"></i>' +
+        '<span class="truncate">' + escapeHtml(label) + '</span>' +
+        '<i data-lucide="chevron-down" class="w-3.5 h-3.5 text-slate-400 shrink-0"></i>';
+      btn.classList.toggle('border-accent-400', active);
+      btn.classList.toggle('bg-accent-50', active);
+
+      // A location row: checkbox + its icon/color + name, plus an edit pencil.
+      const locRow = (l) => {
+        const on = !selected.length || selected.includes(l.name);
+        return '<div class="w-full flex items-center gap-2 px-3 py-1.5 text-xs font-semibold hover:bg-slate-50 transition group/loc">' +
+            '<button type="button" data-location-filter="' + escapeHtml(l.name) + '" class="flex items-center gap-2 flex-1 min-w-0 text-left">' +
+              '<span class="w-4 h-4 rounded flex items-center justify-center border shrink-0 ' + (on ? 'border-accent-500 bg-accent-600' : 'border-slate-300') + '">' +
+                (on ? '<i data-lucide="check" class="w-3 h-3 text-white"></i>' : '') +
+              '</span>' +
+              iconMarkup(l.icon || DEFAULT_LOC_ICON, 'w-3.5 h-3.5 shrink-0', l.color) +
+              '<span class="truncate">' + escapeHtml(l.name) + '</span>' +
+            '</button>' +
+            '<button type="button" data-location-edit="' + escapeHtml(l.name) + '" title="Edit location" ' +
+              'class="text-slate-300 hover:text-accent-600 transition shrink-0 opacity-0 group-hover/loc:opacity-100"><i data-lucide="pencil" class="w-3.5 h-3.5"></i></button>' +
+          '</div>';
+      };
+      // The "No location" bucket (no icon/color/edit).
+      const noneRow = () => {
+        const on = !selected.length || selected.includes('__none__');
+        return '<button type="button" data-location-filter="__none__" class="w-full flex items-center gap-2 px-3 py-1.5 text-left text-xs font-semibold hover:bg-slate-50 transition">' +
+            '<span class="w-4 h-4 rounded flex items-center justify-center border ' + (on ? 'border-accent-500 bg-accent-600' : 'border-slate-300') + '">' +
+              (on ? '<i data-lucide="check" class="w-3 h-3 text-white"></i>' : '') +
+            '</span>' +
+            '<i data-lucide="circle-slash" class="w-3.5 h-3.5 text-slate-300"></i>' +
+            '<span class="truncate text-slate-400 italic">No location</span>' +
+          '</button>';
+      };
+      const rows = locs.length
+        ? locs.map(locRow).join('') + noneRow()
+        : '<div class="px-3 py-3 text-xs text-slate-400 text-center">No locations yet.</div>';
+      menu.innerHTML =
+        '<div class="px-3 py-1.5 flex items-center justify-between border-b border-slate-100">' +
+          '<span class="text-[10px] font-bold uppercase tracking-wide text-slate-400">Filter by location</span>' +
+          (locs.length ? '<button type="button" data-location-filter-clear class="text-[10px] font-bold text-accent-600 hover:text-accent-700">All</button>' : '') +
+        '</div>' + rows +
+        '<div class="border-t border-slate-100 mt-1 pt-1">' +
+          '<button type="button" data-location-add class="w-full flex items-center gap-2 px-3 py-1.5 text-left text-xs font-semibold text-accent-600 hover:bg-accent-50 transition">' +
+            '<i data-lucide="plus" class="w-3.5 h-3.5"></i><span>Add location</span>' +
+          '</button>' +
+        '</div>';
     }
 
     function renderViewSwitcher() {
@@ -1608,12 +1792,12 @@
       const collapseIcon = document.getElementById('collapseAllBtn').querySelector('i, svg');
       if (collapseIcon) collapseIcon.setAttribute('data-lucide', allCollapsed ? 'chevrons-up-down' : 'chevrons-down-up');
 
-      list.innerHTML = state.veggies.map(v => {
+      list.innerHTML = state.veggies.slice().sort((a, b) => a.name.localeCompare(b.name)).map(v => {
         const plantings = v.plantings || [];
         const vegCount = state.tasks.filter(t => t.vegId === v.id && !isTaskComplete(t)).length;
 
         // Sub-rows: one per variety / succession planting under this crop.
-        const plantingRows = plantings.map(p => {
+        const plantingRows = plantings.slice().sort((a, b) => a.name.localeCompare(b.name)).map(p => {
           const pCount = state.tasks.filter(t => t.plantingId === p.id && !isTaskComplete(t)).length;
           const pColor = p.color || v.color;
           const pKey = 'planting:' + p.id;
@@ -1826,10 +2010,11 @@
     // A friendly label describing a note target, shown in the note modal.
     function noteTargetLabel(key) {
       if (key.startsWith('veg:')) { const v = vegById(+key.slice(4)); return 'Plant · ' + (v ? v.name : ''); }
-      if (key.startsWith('planting:')) { const p = plantingById(+key.slice(9)); return 'Variety / succession · ' + (p ? p.name : ''); }
+      if (key.startsWith('planting:')) { const p = plantingById(+key.slice(9)); return 'Planting · ' + (p ? p.name : ''); }
       if (key.startsWith('day:')) { const d = parseISO(key.slice(4)); return DOW[d.getDay()] + ', ' + MONTHS[d.getMonth()] + ' ' + d.getDate() + ', ' + d.getFullYear(); }
       if (key.startsWith('month:')) { const [y,m] = key.slice(6).split('-').map(Number); return MONTHS[m-1] + ' ' + y; }
       if (key.startsWith('year:')) return 'Year ' + key.slice(5);
+      if (key.startsWith('location:')) return 'Location · ' + key.slice(9);
       return 'Note';
     }
 
@@ -2257,9 +2442,21 @@
         const veg = vegOfPlanting(pid);
         if (veg && vegHidden(veg.id)) return false;
       }
-      // Apply the plant filter dropdown (all / veg:<id> / planting:<id>).
+      // Apply the plant filter dropdown (all / none / veg:<id> / planting:<id>).
       const f = state.filter || 'all';
+      // Location filter. A location note (location:<name>) belongs to that
+      // location; all other item notes (plant/variety/day/month/year) aren't
+      // tied to a location, so they're treated as "No location".
+      const locs = state.locationFilter || [];
+      if (locs.length) {
+        const bucket = key.startsWith('location:') ? key.slice(9) : '__none__';
+        if (!locs.includes(bucket)) return false;
+      }
       if (f === 'all') return true;
+      if (f === 'none') {
+        // "No plant" filter: hide crop/variety notes; keep day/month/year/other.
+        return !key.startsWith('veg:') && !key.startsWith('planting:');
+      }
       if (f.startsWith('veg:')) {
         const id = +f.slice(4);
         if (key === 'veg:' + id) return true;
@@ -2281,10 +2478,14 @@
     function taskNoteVisibleInPanel(t) {
       const nts = state.noteTypeFilter || [];
       if (nts.length && !nts.includes('task')) return false;
-      if (vegHidden(t.vegId)) return false;
+      if (t.vegId != null && vegHidden(t.vegId)) return false;
       if (t.plantingId && plantingHidden(t.plantingId)) return false;
+      // Location filter (multi-select). Empty = show all locations.
+      const locs = state.locationFilter || [];
+      if (locs.length && !locs.includes(t.location || '__none__')) return false;
       const f = state.filter || 'all';
       if (f === 'all') return true;
+      if (f === 'none') return t.vegId == null;
       if (f.startsWith('veg:')) return t.vegId === +f.slice(4);
       if (f.startsWith('planting:')) return t.plantingId === +f.slice(9);
       return true;
@@ -2311,11 +2512,12 @@
       // catch-all so no note in the data is ever silently dropped.
       const groups = [
         { id: 'plant', label: 'Plants', icon: 'carrot', test: k => k.startsWith('veg:') },
-        { id: 'variety', label: 'Varieties / successions', icon: 'git-branch', test: k => k.startsWith('planting:') },
+        { id: 'variety', label: 'Plantings', icon: 'git-branch', test: k => k.startsWith('planting:') },
         { id: 'day', label: 'Days', icon: 'calendar-days', test: k => k.startsWith('day:') },
         { id: 'month', label: 'Months', icon: 'calendar-range', test: k => k.startsWith('month:') },
         { id: 'year', label: 'Years', icon: 'calendar', test: k => k.startsWith('year:') },
-        { id: 'other', label: 'Other', icon: 'sticky-note', test: k => !/^(veg|planting|day|month|year):/.test(k) },
+        { id: 'location', label: 'Locations', icon: 'map-pin', test: k => k.startsWith('location:') },
+        { id: 'other', label: 'Other', icon: 'sticky-note', test: k => !/^(veg|planting|day|month|year|location):/.test(k) },
       ];
 
       // Sort keys within each group per the chosen order. 'recent'/'oldest'
@@ -2402,6 +2604,11 @@
       } else if (key.startsWith('planting:')) {
         const p = plantingById(+key.slice(9));
         if (p) dot = '<span class="w-2.5 h-2.5 rounded-full shrink-0 mt-1" style="background:' + (p.color || '#94a3b8') + '"></span>';
+      } else if (key.startsWith('location:')) {
+        const l = locationByName(key.slice(9));
+        const color = l ? (l.color || '#16a34a') : '#16a34a';
+        const icon = l ? (l.icon || DEFAULT_LOC_ICON) : 'map-pin';
+        dot = '<span class="shrink-0 mt-0.5">' + iconMarkup(icon, 'w-3.5 h-3.5', color) + '</span>';
       }
       const entriesHtml = entries.map(e => {
         const stamp = noteStamp(e.ts) + (e.edited ? ' · edited' : '');
@@ -2495,6 +2702,13 @@
       const occAttr = t._occ ? ' data-occ="' + t._occ + '"' : '';
       const recur = (t._masterId || isRecurring(t))
         ? ' <i data-lucide="repeat" class="inline-block w-3 h-3 align-middle" style="color:' + tt.color + '"></i>' : '';
+      // Location tag on the meta line, showing the location's icon + color.
+      const loc = t.location ? locationByName(t.location) : null;
+      const locIcon = loc ? (loc.icon || DEFAULT_LOC_ICON) : 'map-pin';
+      const locColor = loc ? loc.color : '#94a3b8';
+      const locTag = t.location
+        ? ' &middot; <span class="inline-flex items-center gap-0.5 align-middle">' + iconMarkup(locIcon, 'inline-block w-3 h-3 align-middle', locColor) + escapeHtml(t.location) + '</span>'
+        : '';
       return '<button data-task="' + t.id + '"' + occAttr + ' class="w-full text-left flex items-center gap-3 rounded-xl border border-slate-100 hover:border-accent-300 hover:bg-accent-50/40 transition px-3 py-2.5 mb-2 ' + (muted ? 'opacity-60' : '') + '">' +
           '<span class="w-9 h-9 rounded-lg flex items-center justify-center shrink-0" style="' + iconStyle + '">' +
             '<i data-lucide="' + tt.icon + '" class="w-4 h-4" style="color:' + tt.color + (ghost ? ';opacity:0.7' : '') + '"></i>' +
@@ -2503,7 +2717,7 @@
             '<div class="text-sm font-semibold text-slate-800 truncate' + (ghost ? ' italic' : '') + '">' +
               escapeHtml(taskLabel(t)) + ' &middot; <span style="color:' + tt.color + '">' + tt.label + '</span>' + recur +
             '</div>' +
-            '<div class="text-xs text-slate-500 truncate">' + dateStr + (t.notes ? ' &mdash; ' + escapeHtml(noteText(t.notes)) : '') + '</div>' +
+            '<div class="text-xs text-slate-500 truncate">' + dateStr + locTag + (t.notes ? ' &mdash; ' + escapeHtml(noteText(t.notes)) : '') + '</div>' +
           '</div>' +
           badge +
           noteChip +
@@ -2681,11 +2895,11 @@
     function renderPlantVarieties() {
       const box = document.getElementById('plantVarieties');
       if (!plantDraft.plantings.length) {
-        box.innerHTML = '<p class="text-[11px] text-slate-400">No varieties — tasks will apply to the whole plant.</p>';
+        box.innerHTML = '<p class="text-[11px] text-slate-400">No plantings — tasks will apply to the whole plant.</p>';
         lucide.createIcons();
         return;
       }
-      box.innerHTML = plantDraft.plantings.map(p =>
+      box.innerHTML = plantDraft.plantings.slice().sort((a, b) => a.name.localeCompare(b.name)).map(p =>
         '<div class="flex items-center gap-2" data-variety="' + p.id + '">' +
           '<label class="relative w-3 h-3 rounded-full shrink-0 cursor-pointer" style="background:' + (p.color || plantDraft.color) + '" title="Pick color">' +
             '<input data-variety-color="' + p.id + '" type="color" value="' + (p.color || plantDraft.color) + '" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />' +
@@ -3058,17 +3272,13 @@
       const date = opts.date || null;
       const taskId = opts.taskId || null;
       const occ = opts.occ || null;
-      if (!state.veggies.length) {
-        alert('Add a plant first, then schedule tasks for it.');
-        document.getElementById('newVeg').focus();
-        return;
-      }
       editingTaskId = taskId;
       editingOcc = occ;
       const modal = document.getElementById('taskModal');
 
       const vegSel = document.getElementById('taskVeg');
-      vegSel.innerHTML = state.veggies.map(v => '<option value="' + v.id + '">' + escapeHtml(v.name) + '</option>').join('');
+      vegSel.innerHTML = '<option value="">No plant</option>' +
+        state.veggies.slice().sort((a, b) => a.name.localeCompare(b.name)).map(v => '<option value="' + v.id + '">' + escapeHtml(v.name) + '</option>').join('');
 
       document.getElementById('taskTypeGrid').innerHTML = Object.entries(TASK_TYPES).map(([key, tt]) =>
         '<button type="button" data-type="' + key + '" class="type-btn flex items-center gap-1.5 px-2.5 py-2 rounded-lg border text-xs font-semibold transition">' +
@@ -3088,7 +3298,7 @@
         const shownDate = (recurring && occ) ? occ : t.date;
         document.getElementById('modalTitle').textContent = recurring ? 'Edit Repeating Task' : 'Edit Garden Task';
         document.getElementById('modalSave').textContent = 'Update Task';
-        vegSel.value = t.vegId;
+        vegSel.value = t.vegId != null ? t.vegId : '';
         populatePlantingSelect(t.vegId, t.plantingId);
         modalType = t.type;
         document.getElementById('taskDate').value = shownDate;
@@ -3098,6 +3308,7 @@
         setRteContent(document.getElementById('taskNotes'), occNote);
         setRepeatSelect(repeatSel, t);
         repeatUntil.value = t.repeatUntil || '';
+        populateLocationSelect(t.location || '');
         // Done applies to a single (standalone) task or a single occurrence.
         // For a recurring series, read the completion from the master's
         // doneDates map for THIS occurrence (single source of truth).
@@ -3116,6 +3327,7 @@
         setRteContent(document.getElementById('taskNotes'), '');
         repeatSel.value = 'none';
         repeatUntil.value = '';
+        populateLocationSelect(opts.location || '');
         doneCb.checked = false;
         doneDate.value = date || isoToday();
         doneWrap.classList.add('hidden');
@@ -3156,14 +3368,123 @@
     }
     // Fill the variety dropdown for the chosen crop. Always offers a
     // "Whole crop" option so a task can apply to the vegetable in general.
+    // With no crop selected ("No plant"), the variety select is disabled.
     function populatePlantingSelect(vegId, selectedId) {
       const sel = document.getElementById('taskPlanting');
-      const v = vegById(vegId);
+      const v = vegId ? vegById(vegId) : null;
       const plantings = (v && v.plantings) || [];
+      if (!v) {
+        sel.innerHTML = '<option value="">—</option>';
+        sel.value = '';
+        sel.disabled = true;
+        return;
+      }
+      sel.disabled = false;
       let html = '<option value="">Whole crop</option>';
-      html += plantings.map(p => '<option value="' + p.id + '">' + escapeHtml(p.name) + '</option>').join('');
+      html += plantings.slice().sort((a, b) => a.name.localeCompare(b.name)).map(p => '<option value="' + p.id + '">' + escapeHtml(p.name) + '</option>').join('');
       sel.innerHTML = html;
       sel.value = selectedId ? String(selectedId) : '';
+    }
+    // Fill the shared Location dropdown from state.taskLocations. Always offers
+    // a "No location" option; `selected` pre-selects a value (kept even if not
+    // yet in the list, e.g. an occurrence carrying a legacy location).
+    function populateLocationSelect(selected) {
+      const sel = document.getElementById('taskLocation');
+      const names = (state.taskLocations || []).map(l => l.name).sort((a, b) => a.localeCompare(b));
+      if (selected && !names.includes(selected)) names.push(selected);
+      sel.innerHTML = '<option value="">No location</option>' +
+        names.map(n => '<option value="' + escapeHtml(n) + '">' + escapeHtml(n) + '</option>').join('');
+      sel.value = selected || '';
+    }
+
+    // ----- Location editor modal (name + color + icon) -----
+    let locationDraft = null;      // { name, icon, color }
+    let locationEditingName = null; // original name when editing an existing one
+    // Open the location editor. Pass a name to edit an existing location, or a
+    // preset string to prefill the name for a new one.
+    function openLocationModal(editName, presetName) {
+      if (editName) {
+        const l = locationByName(editName);
+        if (!l) return;
+        locationDraft = { name: l.name, icon: l.icon || DEFAULT_LOC_ICON, color: l.color || LOC_COLORS[0] };
+        locationEditingName = l.name;
+        document.getElementById('locationModalTitle').textContent = 'Edit Location';
+        document.getElementById('locationModalDelete').classList.remove('hidden');
+        document.getElementById('locationModalNotes').classList.remove('hidden');
+      } else {
+        const color = LOC_COLORS[(state.taskLocations || []).length % LOC_COLORS.length];
+        locationDraft = { name: (presetName || '').trim(), icon: DEFAULT_LOC_ICON, color };
+        locationEditingName = null;
+        document.getElementById('locationModalTitle').textContent = 'Add Location';
+        document.getElementById('locationModalDelete').classList.add('hidden');
+        document.getElementById('locationModalNotes').classList.add('hidden');
+      }
+      document.getElementById('locationName').value = locationDraft.name;
+      document.getElementById('locationColor').value = locationDraft.color;
+      updateLocationSwatch();
+      renderLocationIconGrid();
+      document.getElementById('locationModal').classList.remove('hidden');
+      lucide.createIcons();
+      setTimeout(() => document.getElementById('locationName').focus(), 0);
+    }
+    function closeLocationModal() {
+      document.getElementById('locationModal').classList.add('hidden');
+      locationDraft = null;
+      locationEditingName = null;
+    }
+    // Sync the color swatch's icon glyph + tint to the current draft.
+    function updateLocationSwatch() {
+      const ic = document.getElementById('locationColorSwatchIcon');
+      if (ic) ic.innerHTML = iconMarkup(locationDraft.icon || DEFAULT_LOC_ICON, 'w-5 h-5', locationDraft.color);
+      lucide.createIcons();
+    }
+    // Render the selectable icon grid; the active icon is highlighted.
+    function renderLocationIconGrid() {
+      const grid = document.getElementById('locationIconGrid');
+      if (!grid) return;
+      grid.innerHTML = LOC_ICONS.map(name => {
+        const active = name === (locationDraft.icon || DEFAULT_LOC_ICON);
+        return '<button type="button" data-location-icon="' + name + '" title="' + name + '" ' +
+          'class="w-8 h-8 flex items-center justify-center rounded-lg border transition ' +
+          (active ? 'border-accent-500 bg-accent-50' : 'border-slate-200 bg-white hover:border-accent-300') + '">' +
+          iconMarkup(name, 'w-4 h-4', (active ? locationDraft.color : '#64748b')) +
+        '</button>';
+      }).join('');
+      lucide.createIcons();
+    }
+    // Persist the drafted location. Returns the saved name, or null on error.
+    function saveLocationFromModal() {
+      const name = document.getElementById('locationName').value.trim();
+      if (!name) { alert('Give the location a name.'); document.getElementById('locationName').focus(); return null; }
+      // Guard against duplicate names (case-insensitive), excluding the one
+      // currently being edited.
+      const clash = (state.taskLocations || []).some(l =>
+        l.name.toLowerCase() === name.toLowerCase() && l.name !== locationEditingName);
+      if (clash) { alert('A location with that name already exists.'); return null; }
+      locationDraft.name = name;
+      locationDraft.color = document.getElementById('locationColor').value;
+      if (locationEditingName) {
+        const l = locationByName(locationEditingName);
+        if (l) {
+          // Renaming: cascade the new name onto every task that used it.
+          if (l.name !== name) {
+            state.tasks.forEach(t => { if (t.location === l.name) t.location = name; });
+            // Keep any active location filter selection in sync.
+            state.locationFilter = (state.locationFilter || []).map(v => v === l.name ? name : v);
+            // Move any note log attached to the old location key.
+            const oldKey = 'location:' + l.name, newKey = 'location:' + name;
+            if (state.notes && state.notes[oldKey]) {
+              state.notes[newKey] = state.notes[oldKey];
+              delete state.notes[oldKey];
+            }
+          }
+          l.name = name; l.icon = locationDraft.icon; l.color = locationDraft.color;
+        }
+      } else {
+        state.taskLocations.push({ name, icon: locationDraft.icon, color: locationDraft.color });
+      }
+      scheduleSave();
+      return name;
     }
     function closeTaskModal() {
       document.getElementById('taskModal').classList.add('hidden');
@@ -3258,12 +3579,14 @@
       });
     }
     function saveTask() {
-      const vegId = +document.getElementById('taskVeg').value;
+      const vegRaw = document.getElementById('taskVeg').value;
+      const vegId = vegRaw ? +vegRaw : null;
       const plantingRaw = document.getElementById('taskPlanting').value;
-      const plantingId = plantingRaw ? +plantingRaw : null;
+      const plantingId = (vegId && plantingRaw) ? +plantingRaw : null;
       const date = document.getElementById('taskDate').value;
       const notes = getRteContent(document.getElementById('taskNotes'));
       if (!date) { alert('Please pick a date.'); return; }
+      const location = document.getElementById('taskLocation').value || null;
       const done = document.getElementById('taskDone').checked;
       const doneDate = done ? (document.getElementById('taskDoneDate').value || date) : null;
       const repeat = document.getElementById('taskRepeat').value;
@@ -3295,6 +3618,7 @@
             || newStep !== oldStep;
           const structuralChanged = vegId !== master.vegId
             || (plantingId ?? null) !== (master.plantingId ?? null)
+            || (location ?? null) !== (master.location ?? null)
             || modalType !== master.type;
           if (!stepChanged && !structuralChanged && !repeatChanged) {
             // Ordinary case: flag completion and/or store a per-occurrence note
@@ -3316,7 +3640,7 @@
             );
             if (all) {
               // Update series-wide fields; keep the original anchor date.
-              Object.assign(master, { vegId, plantingId, type: modalType, notes, repeat, repeatUntil });
+              Object.assign(master, { vegId, plantingId, type: modalType, notes, repeat, repeatUntil, location });
               if (intervalDays) master.intervalDays = intervalDays; else delete master.intervalDays;
               if (repeat === 'none') { master.repeat = 'none'; delete master.repeatUntil; delete master.intervalDays; master.exceptions = []; }
             } else {
@@ -3324,20 +3648,20 @@
               master.exceptions = Array.from(new Set([...(master.exceptions || []), editingOcc]));
               if (master.doneDates) delete master.doneDates[editingOcc];
               if (master.noteOverrides) delete master.noteOverrides[editingOcc];
-              state.tasks.push({ id: seq++, vegId, plantingId, type: modalType, date, notes, repeat: 'none', exceptions: [], done, doneDate: done ? doneDate : null });
+              state.tasks.push({ id: seq++, vegId, plantingId, type: modalType, date, notes, repeat: 'none', exceptions: [], done, doneDate: done ? doneDate : null, location });
             }
           }
         } else {
           // Standalone task (may be converted to/from recurring here).
-          Object.assign(master, { vegId, plantingId, type: modalType, date, notes, repeat, done, doneDate });
+          Object.assign(master, { vegId, plantingId, type: modalType, date, notes, repeat, done, doneDate, location });
           if (repeat === 'none') { delete master.repeatUntil; delete master.intervalDays; master.exceptions = []; }
           else { master.repeatUntil = repeatUntil; if (intervalDays) master.intervalDays = intervalDays; else delete master.intervalDays; master.exceptions = master.exceptions || []; master.done = false; master.doneDate = null; }
         }
       } else {
         // New task.
         state.tasks.push(repeat === 'none'
-          ? { id: seq++, vegId, plantingId, type: modalType, date, notes, repeat: 'none', exceptions: [], done, doneDate: done ? doneDate : null }
-          : { id: seq++, vegId, plantingId, type: modalType, date, notes, repeat, repeatUntil, exceptions: [], ...(intervalDays ? { intervalDays } : {}) });
+          ? { id: seq++, vegId, plantingId, type: modalType, date, notes, repeat: 'none', exceptions: [], done, doneDate: done ? doneDate : null, location }
+          : { id: seq++, vegId, plantingId, type: modalType, date, notes, repeat, repeatUntil, exceptions: [], location, ...(intervalDays ? { intervalDays } : {}) });
       }
       // Make sure the new/edited task's type is visible in the filter
       // (it may have been an unchecked 0-count type before).
@@ -3598,6 +3922,59 @@
         renderPlantIconGrid();
       }
     });
+
+    // ----- Location modal wiring -----
+    document.getElementById('locationModalClose').addEventListener('click', closeLocationModal);
+    document.getElementById('locationModalCancel').addEventListener('click', closeLocationModal);
+    document.getElementById('locationModal').addEventListener('click', e => {
+      if (e.target.id === 'locationModal') closeLocationModal();
+    });
+    document.getElementById('locationColor').addEventListener('input', e => {
+      if (locationDraft) locationDraft.color = e.target.value;
+      updateLocationSwatch();
+      renderLocationIconGrid();
+    });
+    document.getElementById('locationIconGrid').addEventListener('click', e => {
+      const btn = e.target.closest('[data-location-icon]');
+      if (btn && locationDraft) {
+        locationDraft.icon = btn.dataset.locationIcon;
+        updateLocationSwatch();
+        renderLocationIconGrid();
+      }
+    });
+    document.getElementById('locationModalSave').addEventListener('click', () => {
+      const savedName = saveLocationFromModal();
+      if (savedName == null) return;
+      closeLocationModal();
+      // If the task modal is open, refresh its dropdown and select the new one.
+      const taskModalOpen = !document.getElementById('taskModal').classList.contains('hidden');
+      if (taskModalOpen) populateLocationSelect(savedName);
+      renderLocationFilter();
+      renderActiveView();
+      lucide.createIcons();
+    });
+    document.getElementById('locationModalDelete').addEventListener('click', () => {
+      if (!locationEditingName) return;
+      if (!confirm('Delete "' + locationEditingName + '"? Tasks keep the label but it leaves the shared list.')) return;
+      state.taskLocations = (state.taskLocations || []).filter(l => l.name !== locationEditingName);
+      state.locationFilter = (state.locationFilter || []).filter(v => v !== locationEditingName);
+      scheduleSave();
+      closeLocationModal();
+      renderLocationFilter();
+      renderActiveView();
+      lucide.createIcons();
+    });
+    // Open the note log for the location being edited. Persist any pending
+    // edits first so the note key matches the (possibly renamed) location.
+    document.getElementById('locationModalNotes').addEventListener('click', () => {
+      if (!locationEditingName) return;
+      const savedName = saveLocationFromModal();
+      if (savedName == null) return;
+      closeLocationModal();
+      renderLocationFilter();
+      renderActiveView();
+      openNoteModal('location:' + savedName);
+    });
     // Collapse / expand the icon picker grid.
     document.getElementById('plantIconToggle').addEventListener('click', () => {
       const grid = document.getElementById('plantIconGrid');
@@ -3757,6 +4134,7 @@
     plantFilterBtn.addEventListener('click', e => {
       e.stopPropagation();
       typeFilterMenu.classList.add('hidden');
+      document.getElementById('locationFilterMenu').classList.add('hidden');
       plantFilterMenu.classList.toggle('hidden');
       lucide.createIcons();
     });
@@ -3778,6 +4156,7 @@
     typeFilterBtn.addEventListener('click', e => {
       e.stopPropagation();
       plantFilterMenu.classList.add('hidden');
+      document.getElementById('locationFilterMenu').classList.add('hidden');
       typeFilterMenu.classList.toggle('hidden');
       lucide.createIcons();
     });
@@ -3826,6 +4205,50 @@
     document.addEventListener('click', () => {
       typeFilterMenu.classList.add('hidden');
       plantFilterMenu.classList.add('hidden');
+      locationFilterMenu.classList.add('hidden');
+    });
+
+    // Location filter (multi-select dropdown).
+    const locationFilterBtn = document.getElementById('locationFilterBtn');
+    const locationFilterMenu = document.getElementById('locationFilterMenu');
+    locationFilterBtn.addEventListener('click', e => {
+      e.stopPropagation();
+      typeFilterMenu.classList.add('hidden');
+      plantFilterMenu.classList.add('hidden');
+      locationFilterMenu.classList.toggle('hidden');
+      lucide.createIcons();
+    });
+    locationFilterMenu.addEventListener('click', e => {
+      e.stopPropagation();
+      // Add / edit a location open the editor modal (keep the menu logic out).
+      if (e.target.closest('[data-location-add]')) {
+        locationFilterMenu.classList.add('hidden');
+        openLocationModal(null, '');
+        return;
+      }
+      const editBtn = e.target.closest('[data-location-edit]');
+      if (editBtn) {
+        locationFilterMenu.classList.add('hidden');
+        openLocationModal(editBtn.dataset.locationEdit);
+        return;
+      }
+      if (e.target.closest('[data-location-filter-clear]')) {
+        state.locationFilter = [];
+      } else {
+        const row = e.target.closest('[data-location-filter]');
+        if (!row) return;
+        const key = row.dataset.locationFilter;
+        const allKeys = [...(state.taskLocations || []).map(l => l.name), '__none__'];
+        // Empty selection means "all"; start from the full set so unchecking
+        // one leaves the rest selected.
+        const set = new Set(state.locationFilter.length ? state.locationFilter : allKeys);
+        if (set.has(key)) set.delete(key); else set.add(key);
+        state.locationFilter = (set.size === allKeys.length) ? [] : Array.from(set);
+      }
+      renderLocationFilter();
+      renderActiveView();
+      lucide.createIcons();
+      scheduleSave();
     });
 
     document.getElementById('prevBtn').addEventListener('click', () => navigate(-1));
@@ -3966,7 +4389,7 @@
     });
     // When the crop changes in the modal, reload its varieties / plantings.
     document.getElementById('taskVeg').addEventListener('change', e => {
-      populatePlantingSelect(+e.target.value, null);
+      populatePlantingSelect(e.target.value ? +e.target.value : null, null);
     });
     document.getElementById('modalSave').addEventListener('click', saveTask);
     // Toggle the "date actually done" field when marking a task complete.
@@ -3980,6 +4403,10 @@
     });
     // Toggle the "Repeat until" field when the repeat cadence changes.
     document.getElementById('taskRepeat').addEventListener('change', syncRepeatUntil);
+    // Add a new shared location from the task modal via the location editor.
+    document.getElementById('taskLocationAdd').addEventListener('click', () => {
+      openLocationModal(null, '');
+    });
     document.getElementById('modalDelete').addEventListener('click', deleteTask);
     document.getElementById('modalCancel').addEventListener('click', closeTaskModal);
     document.getElementById('modalClose').addEventListener('click', closeTaskModal);
@@ -3987,7 +4414,7 @@
       if (e.target.id === 'taskModal') closeTaskModal();
     });
     document.addEventListener('keydown', e => {
-      if (e.key === 'Escape') { closeTaskModal(); closeNoteModal(); closePlantModal(); }
+      if (e.key === 'Escape') { closeTaskModal(); closeNoteModal(); closePlantModal(); closeLocationModal(); }
     });
 
     document.getElementById('resetBtn').addEventListener('click', resetAll);
@@ -4064,6 +4491,8 @@
       state.tasks = [];
       state.notes = {};
       state.typeFilter = [];
+      state.locationFilter = [];
+      state.taskLocations = [];
       state.hiddenVegs = [];
       state.hiddenPlantings = [];
       // Demo location: Ypsilanti, MI (48197) — zone 6a.
@@ -4229,6 +4658,18 @@
       repeatTask(pepper, bell,     'harvest', '08-05', '10-05', 7, 'Pick green or let ripen red (weekly)');
       repeatTask(pepper, jalapeno, 'harvest', '07-25', '10-05', 7, 'Pick firm, glossy pods (weekly)');
 
+      // =====================================================================
+      // EDAMAME — vegetable soybean; warm-season, direct sown, single big pick.
+      // =====================================================================
+      const edamame = mkVeg('Edamame', '#4d7c0f', 'bean');
+      const chiba = mkPlanting(edamame, 'Chiba Green', '#65a30d');
+      const midori = mkPlanting(edamame, 'Midori Giant', '#84cc16');
+      task(edamame, chiba, 'direct_sow', y + '-05-20', 'Sow 1in deep after soil warms to 60°F; do not soak seed');
+      task(edamame, chiba, 'fertilize', y + '-06-20', 'Light feed; inoculant does most of the nitrogen work');
+      task(edamame, chiba, 'harvest', y + '-08-05', 'Pick when pods are plump but still bright green; whole plant at once');
+      task(edamame, midori, 'direct_sow', y + '-06-03', 'Succession sowing ~2 weeks after the first');
+      task(edamame, midori, 'harvest', y + '-08-22', 'Second flush; blanch or freeze extras same day');
+
       // ----- Drip-irrigation watering schedule (backyard garden) -----
       // A timer-driven drip system waters each bed, but only while that crop is
       // actually in the ground (from planting/emergence to harvest). Cadence
@@ -4261,19 +4702,20 @@
         }
       };
       // Each crop is watered only while actively growing in its bed.
-      waterBed(potato,     '04-22', '09-20', 'potato bed');       // planting → just before harvest
-      waterBed(pepper,     '05-28', '09-25', 'pepper bed');       // transplant → end of harvest
-      waterBed(garlic,     '04-15', '07-15', 'garlic bed');       // spring growth → before harvest (cure dry)
-      waterBed(onion,      '04-20', '08-25', 'onion bed');        // planting → stop before harvest to cure
-      waterBed(strawberry, '04-26', '10-05', 'strawberry bed');   // perennial, long season
-      waterBed(basil,      '05-28', '08-12', 'herb bed');         // transplant → harvest
-      waterBed(tomato,     '05-24', '09-25', 'tomato bed');       // transplant → end of harvest
-      waterBed(lettuce,    '04-15', '06-26', 'salad bed');        // sowing → before it bolts in heat
-      waterBed(lettuce,    '08-20', '10-25', 'salad bed');        // fall sowing
-      waterBed(radish,     '04-15', '05-15', 'salad bed');        // fast spring crop
-      waterBed(radish,     '09-05', '10-20', 'salad bed');        // fall sowing
-      waterBed(carrot,     '04-18', '07-05', 'root bed');         // spring carrots
-      waterBed(carrot,     '07-20', '10-15', 'root bed');         // fall carrots
+      waterBed(potato,     '04-22', '09-20', 'South Bed 16x4');   // planting → just before harvest
+      waterBed(pepper,     '05-28', '09-25', 'South Bed 16x4');   // transplant → end of harvest
+      waterBed(garlic,     '04-15', '07-15', 'South Bed 16x4');   // spring growth → before harvest (cure dry)
+      waterBed(onion,      '04-20', '08-25', 'South Bed 16x4');   // planting → stop before harvest to cure
+      waterBed(strawberry, '04-26', '10-05', 'South Bed 16x4');   // perennial, long season
+      waterBed(basil,      '05-28', '08-12', 'Bed A 6x3');        // transplant → harvest
+      waterBed(tomato,     '05-24', '09-25', 'Bed A 6x3');        // transplant → end of harvest
+      waterBed(edamame,    '05-20', '08-22', 'Bed A 6x3');        // direct sow → final pick
+      waterBed(lettuce,    '04-15', '06-26', 'Bed B 6x3');        // sowing → before it bolts in heat
+      waterBed(lettuce,    '08-20', '10-25', 'Bed B 6x3');        // fall sowing
+      waterBed(radish,     '04-15', '05-15', 'Bed B 6x3');        // fast spring crop
+      waterBed(radish,     '09-05', '10-20', 'Bed B 6x3');        // fall sowing
+      waterBed(carrot,     '04-18', '07-05', 'Bed B 6x3');        // spring carrots
+      waterBed(carrot,     '07-20', '10-15', 'Bed B 6x3');        // fall carrots
 
       // ----- Notes across crops, varieties, days, months & the year -----
       state.notes['year:' + y] = [
@@ -4304,6 +4746,9 @@
       state.notes['veg:' + carrot.id] = [
         mkEntry(y + '-04-18', 'Germination is slow (2-3 wks). Cover the row with a board or burlap to hold moisture until sprouts show.', 8),
       ];
+      state.notes['veg:' + edamame.id] = [
+        mkEntry(y + '-05-20', 'Do not presoak seed — it rots. Harvest the whole plant once pods are plump; the window is only ~1 week.', 9),
+      ];
       state.notes['planting:' + jalapeno.id] = [
         mkEntry(y + '-07-25', 'Leave on plant longer for extra heat; corking (light stripes) is normal and desirable.', 12),
       ];
@@ -4316,6 +4761,45 @@
       state.notes['day:' + y + '-05-24'] = [
         mkEntry(y + '-05-23', 'Tomato transplant day tomorrow — check overnight lows are above 50°F.', 20),
         mkEntry(y + '-05-24', 'Set out all tomatoes. Watered in with fish emulsion.', 18),
+      ];
+
+      // ----- Assign a garden location to every task (by crop's bed) -----
+      // A shared, reusable set of location names the user can filter by and
+      // extend. Beds are the real raised beds in the garden; each crop maps to
+      // the bed it grows in. The big South Bed holds the heavy/perennial crops;
+      // Bed A holds the warm-season fruiting crops; Bed B is the fast-rotation
+      // salad/root bed.
+      const bedByVegId = {};
+      bedByVegId[potato.id] = 'South Bed 16x4';
+      bedByVegId[garlic.id] = 'South Bed 16x4';
+      bedByVegId[onion.id] = 'South Bed 16x4';
+      bedByVegId[strawberry.id] = 'South Bed 16x4';
+      bedByVegId[pepper.id] = 'South Bed 16x4';
+      bedByVegId[tomato.id] = 'Bed A 6x3';
+      bedByVegId[basil.id] = 'Bed A 6x3';
+      bedByVegId[edamame.id] = 'Bed A 6x3';
+      bedByVegId[lettuce.id] = 'Bed B 6x3';
+      bedByVegId[radish.id] = 'Bed B 6x3';
+      bedByVegId[carrot.id] = 'Bed B 6x3';
+      state.taskLocations = [
+        { name: 'South Bed 16x4', icon: 'rows-3', color: '#a16207' },
+        { name: 'Bed A 6x3',      icon: 'grid-2x2', color: '#65a30d' },
+        { name: 'Bed B 6x3',      icon: 'sprout', color: '#0891b2' },
+      ];
+      state.tasks.forEach(function (t) { t.location = bedByVegId[t.vegId] || null; });
+
+      // ----- Location notes (bed-level observations) -----
+      state.notes['location:South Bed 16x4'] = [
+        mkEntry(y + '-04-10', 'Full sun all day. Amended with 3in of compost + a dusting of bone meal before the heavy feeders went in.', 8),
+        mkEntry(y + '-07-18', 'North end drains slowly after storms — mound the potato rows a bit higher next year.', 15),
+      ];
+      state.notes['location:Bed A 6x3'] = [
+        mkEntry(y + '-05-24', 'Warmest bed — against the south fence, so it heats up first. Perfect for tomatoes, basil & edamame.', 9),
+        mkEntry(y + '-08-02', 'Tomatoes have outgrown the cages; basil interplanted between them is thriving in the shade.', 14),
+      ];
+      state.notes['location:Bed B 6x3'] = [
+        mkEntry(y + '-04-15', 'Salad/root rotation bed. Loosened deep (12in) and raked fine for carrots — no rocks or fresh manure.', 8),
+        mkEntry(y + '-09-06', 'Cleared spring greens; re-sowed fall radish & carrots. Floating row cover on to keep flea beetles off.', 13),
       ];
 
       // Mark every task (and recurring occurrence) scheduled before today as
