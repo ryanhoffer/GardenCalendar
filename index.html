@@ -202,36 +202,10 @@
           </div>
 
           <label class="block text-[11px] font-semibold text-slate-500 mb-1">Hardiness zone</label>
-          <select id="zoneSelect" class="w-full px-3 py-1.5 rounded-lg text-sm border border-slate-200 bg-slate-50 outline-none focus:border-accent-500 focus:ring-1 focus:ring-accent-500 mb-3">
+          <select id="zoneSelect" class="w-full px-3 py-1.5 rounded-lg text-sm border border-slate-200 bg-slate-50 outline-none focus:border-accent-500 focus:ring-1 focus:ring-accent-500 mb-1">
             <option value="">Not set</option>
           </select>
-
-          <div class="rounded-lg bg-slate-50 border border-slate-200 p-3 space-y-2.5">
-            <p class="text-[10px] font-bold uppercase tracking-wide text-slate-400">Frost dates</p>
-
-            <div>
-              <div class="flex items-center gap-1.5 mb-1">
-                <span class="w-2 h-2 rounded-full" style="background:#0ea5e9"></span>
-                <span class="text-xs font-semibold text-slate-600">Last (spring)</span>
-                <span id="tentLast" class="ml-auto text-[11px] text-slate-400"></span>
-              </div>
-              <input id="actualLastFrost" type="date"
-                class="w-full px-2 py-1 rounded text-xs border border-slate-200 bg-white outline-none focus:border-accent-500 focus:ring-1 focus:ring-accent-500" />
-              <p class="text-[10px] text-slate-400 mt-0.5">Set the actual date once it happens.</p>
-            </div>
-
-            <div>
-              <div class="flex items-center gap-1.5 mb-1">
-                <span class="w-2 h-2 rounded-full" style="background:#6366f1"></span>
-                <span class="text-xs font-semibold text-slate-600">First (fall)</span>
-                <span id="tentFirst" class="ml-auto text-[11px] text-slate-400"></span>
-              </div>
-              <input id="actualFirstFrost" type="date"
-                class="w-full px-2 py-1 rounded text-xs border border-slate-200 bg-white outline-none focus:border-accent-500 focus:ring-1 focus:ring-accent-500" />
-              <p class="text-[10px] text-slate-400 mt-0.5">Set the actual date once it happens.</p>
-            </div>
-          </div>
-          <p class="text-[10px] text-slate-400 mt-2 leading-snug">Tentative frost dates appear as faded markers on the calendar; recording the actual date fills them in.</p>
+          <p class="text-[10px] text-slate-400 mt-1 leading-snug">Your zone sets tentative frost dates. Record the actual dates each year in the <span class="font-semibold text-slate-500">Year</span> view.</p>
         </div>
       </div>
     </aside>
@@ -288,77 +262,113 @@
       <div class="flex items-center gap-2 px-5 py-4 border-b border-slate-200">
         <i data-lucide="calendar-plus" class="w-5 h-5 text-accent-600"></i>
         <h3 id="modalTitle" class="font-bold">Add Garden Task</h3>
-        <button id="modalClose" class="ml-auto text-slate-400 hover:text-slate-700 transition">
+        <button id="taskCollapseAll" class="ml-auto text-slate-400 hover:text-accent-600 transition" title="Collapse all sections">
+          <i data-lucide="chevrons-down-up" class="w-5 h-5"></i>
+        </button>
+        <button id="modalClose" class="text-slate-400 hover:text-slate-700 transition">
           <i data-lucide="x" class="w-5 h-5"></i>
         </button>
       </div>
 
-      <div class="px-5 py-4 space-y-4">
-        <div class="grid grid-cols-2 gap-3">
-          <div>
-            <label class="block text-xs font-semibold text-slate-600 mb-1">Plant</label>
-            <select id="taskVeg" class="w-full px-3 py-2 rounded-lg text-sm border border-slate-200 bg-slate-50 outline-none focus:border-accent-500 focus:ring-1 focus:ring-accent-500"></select>
-          </div>
-          <div>
-            <label class="block text-xs font-semibold text-slate-600 mb-1">Planting</label>
-            <select id="taskPlanting" class="w-full px-3 py-2 rounded-lg text-sm border border-slate-200 bg-slate-50 outline-none focus:border-accent-500 focus:ring-1 focus:ring-accent-500"></select>
-          </div>
-        </div>
-
+      <div class="px-5 py-4 space-y-4 max-h-[70vh] overflow-y-auto">
+        <!-- Section: Plant & type -->
         <div>
-          <label class="block text-xs font-semibold text-slate-600 mb-1">Task type</label>
-          <div id="taskTypeGrid" class="grid grid-cols-2 gap-2"></div>
-        </div>
-
-        <div class="grid grid-cols-2 gap-3">
-          <div>
-            <label class="block text-xs font-semibold text-slate-600 mb-1">Date</label>
-            <input id="taskDate" type="date" class="w-full px-3 py-2 rounded-lg text-sm border border-slate-200 bg-slate-50 outline-none focus:border-accent-500 focus:ring-1 focus:ring-accent-500" />
-          </div>
-          <div>
-            <label class="block text-xs font-semibold text-slate-600 mb-1">Repeat</label>
-            <select id="taskRepeat" class="w-full px-3 py-2 rounded-lg text-sm border border-slate-200 bg-slate-50 outline-none focus:border-accent-500 focus:ring-1 focus:ring-accent-500">
-              <option value="none">One time</option>
-              <option value="daily">Daily</option>
-              <option value="weekly">Weekly</option>
-              <option value="biweekly">Every 2 weeks</option>
-              <option value="monthly">Monthly</option>
-              <option value="interval" hidden>Custom interval</option>
-            </select>
-          </div>
-        </div>
-
-        <div id="taskRepeatUntilWrap" class="hidden">
-          <label class="block text-xs font-semibold text-slate-600 mb-1">Repeat until</label>
-          <input id="taskRepeatUntil" type="date" class="w-full px-3 py-2 rounded-lg text-sm border border-slate-200 bg-slate-50 outline-none focus:border-accent-500 focus:ring-1 focus:ring-accent-500" />
-          <p class="text-[11px] text-slate-400 mt-1">The whole series counts as one task. Editing one occurrence lets you change just that day or the whole series.</p>
-        </div>
-
-        <div>
-          <label class="block text-xs font-semibold text-slate-600 mb-1">Location <span class="text-slate-400 font-normal">(optional)</span></label>
-          <div class="flex items-center gap-2">
-            <select id="taskLocation" class="flex-1 min-w-0 px-3 py-2 rounded-lg text-sm border border-slate-200 bg-slate-50 outline-none focus:border-accent-500 focus:ring-1 focus:ring-accent-500"></select>
-            <button type="button" id="taskLocationAdd" class="px-3 py-2 rounded-lg text-xs font-semibold bg-slate-100 text-slate-700 hover:bg-accent-100 hover:text-accent-700 transition flex items-center gap-1 shrink-0" title="Add a new location">
-              <i data-lucide="plus" class="w-3.5 h-3.5"></i> New
-            </button>
-          </div>
-        </div>
-
-        <div>
-          <label class="block text-xs font-semibold text-slate-600 mb-1">Notes <span class="text-slate-400 font-normal">(optional)</span></label>
-          <div class="rte" id="taskNotesRte">
-            <div class="rte-toolbar">
-              <button type="button" class="rte-btn" data-rte-cmd="bold" title="Bold" tabindex="-1"><i data-lucide="bold" class="w-3.5 h-3.5"></i></button>
-              <button type="button" class="rte-btn" data-rte-cmd="italic" title="Italic" tabindex="-1"><i data-lucide="italic" class="w-3.5 h-3.5"></i></button>
-              <button type="button" class="rte-btn" data-rte-cmd="underline" title="Underline" tabindex="-1"><i data-lucide="underline" class="w-3.5 h-3.5"></i></button>
-              <span class="w-px h-5 my-0.5 bg-slate-200 mx-0.5"></span>
-              <button type="button" class="rte-btn" data-rte-cmd="insertUnorderedList" title="Bullet list" tabindex="-1"><i data-lucide="list" class="w-3.5 h-3.5"></i></button>
-              <button type="button" class="rte-btn" data-rte-cmd="insertOrderedList" title="Numbered list" tabindex="-1"><i data-lucide="list-ordered" class="w-3.5 h-3.5"></i></button>
-              <span class="w-px h-5 my-0.5 bg-slate-200 mx-0.5"></span>
-              <button type="button" class="rte-btn" data-rte-cmd="createLink" title="Add link" tabindex="-1"><i data-lucide="link" class="w-3.5 h-3.5"></i></button>
-              <button type="button" class="rte-btn" data-rte-cmd="removeFormat" title="Clear formatting" tabindex="-1"><i data-lucide="remove-formatting" class="w-3.5 h-3.5"></i></button>
+          <button type="button" id="taskSecDetailsToggle" class="w-full flex items-center gap-2 mb-2">
+            <i data-lucide="sprout" class="w-4 h-4 text-accent-600"></i>
+            <h4 class="text-xs font-bold uppercase tracking-wide text-slate-500">Plant &amp; type</h4>
+            <i data-lucide="chevron-down" id="taskSecDetailsChevron" class="w-4 h-4 text-slate-400 ml-auto transition-transform"></i>
+          </button>
+          <div id="taskSecDetailsBody" class="space-y-4">
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="block text-xs font-semibold text-slate-600 mb-1">Plant</label>
+                <select id="taskVeg" class="w-full px-3 py-2 rounded-lg text-sm border border-slate-200 bg-slate-50 outline-none focus:border-accent-500 focus:ring-1 focus:ring-accent-500"></select>
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-slate-600 mb-1">Planting</label>
+                <select id="taskPlanting" class="w-full px-3 py-2 rounded-lg text-sm border border-slate-200 bg-slate-50 outline-none focus:border-accent-500 focus:ring-1 focus:ring-accent-500"></select>
+              </div>
             </div>
-            <div id="taskNotes" class="rte-editor" contenteditable="true" data-placeholder="e.g. Start seeds indoors under lights" style="min-height: 64px; max-height: 220px;"></div>
+
+            <div>
+              <label class="block text-xs font-semibold text-slate-600 mb-1">Task type</label>
+              <div id="taskTypeGrid" class="grid grid-cols-2 gap-2"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Section: Schedule -->
+        <div>
+          <button type="button" id="taskSecScheduleToggle" class="w-full flex items-center gap-2 mb-2">
+            <i data-lucide="calendar-clock" class="w-4 h-4 text-accent-600"></i>
+            <h4 class="text-xs font-bold uppercase tracking-wide text-slate-500">Schedule</h4>
+            <i data-lucide="chevron-down" id="taskSecScheduleChevron" class="w-4 h-4 text-slate-400 ml-auto transition-transform"></i>
+          </button>
+          <div id="taskSecScheduleBody" class="space-y-4">
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="block text-xs font-semibold text-slate-600 mb-1">Date</label>
+                <input id="taskDate" type="date" class="w-full px-3 py-2 rounded-lg text-sm border border-slate-200 bg-slate-50 outline-none focus:border-accent-500 focus:ring-1 focus:ring-accent-500" />
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-slate-600 mb-1">Repeat</label>
+                <select id="taskRepeat" class="w-full px-3 py-2 rounded-lg text-sm border border-slate-200 bg-slate-50 outline-none focus:border-accent-500 focus:ring-1 focus:ring-accent-500">
+                  <option value="none">One time</option>
+                  <option value="daily">Daily</option>
+                  <option value="weekly">Weekly</option>
+                  <option value="biweekly">Every 2 weeks</option>
+                  <option value="monthly">Monthly</option>
+                  <option value="interval" hidden>Custom interval</option>
+                </select>
+              </div>
+            </div>
+
+            <div id="taskRepeatUntilWrap" class="hidden">
+              <label class="block text-xs font-semibold text-slate-600 mb-1">Repeat until</label>
+              <input id="taskRepeatUntil" type="date" class="w-full px-3 py-2 rounded-lg text-sm border border-slate-200 bg-slate-50 outline-none focus:border-accent-500 focus:ring-1 focus:ring-accent-500" />
+            </div>
+          </div>
+        </div>
+
+        <!-- Section: Location -->
+        <div>
+          <button type="button" id="taskSecLocationToggle" class="w-full flex items-center gap-2 mb-2">
+            <i data-lucide="map-pin" class="w-4 h-4 text-accent-600"></i>
+            <h4 class="text-xs font-bold uppercase tracking-wide text-slate-500">Location <span class="text-slate-400 font-normal normal-case">(optional)</span></h4>
+            <i data-lucide="chevron-down" id="taskSecLocationChevron" class="w-4 h-4 text-slate-400 ml-auto transition-transform"></i>
+          </button>
+          <div id="taskSecLocationBody">
+            <div class="flex items-center gap-2">
+              <select id="taskLocation" class="flex-1 min-w-0 px-3 py-2 rounded-lg text-sm border border-slate-200 bg-slate-50 outline-none focus:border-accent-500 focus:ring-1 focus:ring-accent-500"></select>
+              <button type="button" id="taskLocationAdd" class="px-3 py-2 rounded-lg text-xs font-semibold bg-slate-100 text-slate-700 hover:bg-accent-100 hover:text-accent-700 transition flex items-center gap-1 shrink-0" title="Add a new location">
+                <i data-lucide="plus" class="w-3.5 h-3.5"></i> New
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Section: Notes -->
+        <div>
+          <button type="button" id="taskSecNotesToggle" class="w-full flex items-center gap-2 mb-2">
+            <i data-lucide="sticky-note" class="w-4 h-4 text-accent-600"></i>
+            <h4 class="text-xs font-bold uppercase tracking-wide text-slate-500">Notes <span class="text-slate-400 font-normal normal-case">(optional)</span></h4>
+            <i data-lucide="chevron-down" id="taskSecNotesChevron" class="w-4 h-4 text-slate-400 ml-auto transition-transform"></i>
+          </button>
+          <div id="taskSecNotesBody">
+            <div class="rte" id="taskNotesRte">
+              <div class="rte-toolbar">
+                <button type="button" class="rte-btn" data-rte-cmd="bold" title="Bold" tabindex="-1"><i data-lucide="bold" class="w-3.5 h-3.5"></i></button>
+                <button type="button" class="rte-btn" data-rte-cmd="italic" title="Italic" tabindex="-1"><i data-lucide="italic" class="w-3.5 h-3.5"></i></button>
+                <button type="button" class="rte-btn" data-rte-cmd="underline" title="Underline" tabindex="-1"><i data-lucide="underline" class="w-3.5 h-3.5"></i></button>
+                <span class="w-px h-5 my-0.5 bg-slate-200 mx-0.5"></span>
+                <button type="button" class="rte-btn" data-rte-cmd="insertUnorderedList" title="Bullet list" tabindex="-1"><i data-lucide="list" class="w-3.5 h-3.5"></i></button>
+                <button type="button" class="rte-btn" data-rte-cmd="insertOrderedList" title="Numbered list" tabindex="-1"><i data-lucide="list-ordered" class="w-3.5 h-3.5"></i></button>
+                <span class="w-px h-5 my-0.5 bg-slate-200 mx-0.5"></span>
+                <button type="button" class="rte-btn" data-rte-cmd="createLink" title="Add link" tabindex="-1"><i data-lucide="link" class="w-3.5 h-3.5"></i></button>
+                <button type="button" class="rte-btn" data-rte-cmd="removeFormat" title="Clear formatting" tabindex="-1"><i data-lucide="remove-formatting" class="w-3.5 h-3.5"></i></button>
+              </div>
+              <div id="taskNotes" class="rte-editor" contenteditable="true" data-placeholder="e.g. Start seeds indoors under lights" style="min-height: 64px; max-height: 220px;"></div>
+            </div>
           </div>
         </div>
 
@@ -373,7 +383,6 @@
           <div id="taskDoneDateWrap" class="hidden mt-3 pl-6">
             <label class="block text-xs font-semibold text-slate-600 mb-1">Date actually done</label>
             <input id="taskDoneDate" type="date" class="w-full px-3 py-2 rounded-lg text-sm border border-slate-200 bg-white outline-none focus:border-accent-500 focus:ring-1 focus:ring-accent-500" />
-            <p class="text-[11px] text-slate-400 mt-1">Planned tasks show as a faded “ghost”. Completed ones move to this date and fill in with color.</p>
           </div>
         </div>
       </div>
@@ -727,22 +736,24 @@
         first: f.first ? (year + '-' + f.first) : null,
       };
     }
+    // Actual (user-recorded) frost dates for a year, or an empty object.
+    function frostActual(year) { return (state.frostDates && state.frostDates[year]) || {}; }
     // Frost markers to draw for a given ISO date: tentative (ghost) unless the
     // user has recorded the actual date, which replaces it (solid).
     function frostOn(iso) {
-      const loc = state.location || {};
       const year = iso.slice(0, 4);
       const tent = tentativeFrost(year);
+      const act = frostActual(year);
       const out = [];
       // Last (spring) frost.
-      if (loc.actualLastFrost) {
-        if (loc.actualLastFrost === iso) out.push({ kind: 'last', actual: true });
+      if (act.last) {
+        if (act.last === iso) out.push({ kind: 'last', actual: true });
       } else if (tent.last === iso) {
         out.push({ kind: 'last', actual: false });
       }
       // First (fall) frost.
-      if (loc.actualFirstFrost) {
-        if (loc.actualFirstFrost === iso) out.push({ kind: 'first', actual: true });
+      if (act.first) {
+        if (act.first === iso) out.push({ kind: 'first', actual: true });
       } else if (tent.first === iso) {
         out.push({ kind: 'first', actual: false });
       }
@@ -977,13 +988,12 @@
       listDoneFilter: 'all', // List view completion filter: 'all' | 'planned' | 'done'
       listCollapsed: {},   // List view section collapse: { upcoming: bool, past: bool }
       notes: {},     // keyed by target: 'veg:<id>' | 'planting:<id>' | 'day:<iso>' | 'month:<YYYY-MM>'
+      frostDates: {}, // per-year actual frost dates: { '<YYYY>': { last: ISO, first: ISO } }
       location: {    // grow zone + frost dates
         zip: '',
         zone: '',        // USDA hardiness zone, e.g. '6b'
         lat: null,       // resolved from ZIP, used for weather
         lon: null,
-        actualLastFrost: '',   // ISO, user-entered when it actually happened
-        actualFirstFrost: '',  // ISO
       },
     };
     let seq = 1;
@@ -1012,7 +1022,7 @@
     function persistState() {
       try {
         localStorage.setItem(STORAGE_KEY, JSON.stringify({
-          veggies: state.veggies, tasks: state.tasks, view: state.view, filter: state.filter, typeFilter: state.typeFilter, locationFilter: state.locationFilter, taskLocations: state.taskLocations, hiddenVegs: state.hiddenVegs, hiddenPlantings: state.hiddenPlantings, notes: state.notes, location: state.location, weather: { data: weatherCache, lastSync: weatherLastSync, version: WEATHER_SYNC_VERSION }, seq
+          veggies: state.veggies, tasks: state.tasks, view: state.view, filter: state.filter, typeFilter: state.typeFilter, locationFilter: state.locationFilter, taskLocations: state.taskLocations, hiddenVegs: state.hiddenVegs, hiddenPlantings: state.hiddenPlantings, notes: state.notes, location: state.location, frostDates: state.frostDates, weather: { data: weatherCache, lastSync: weatherLastSync, version: WEATHER_SYNC_VERSION }, seq
         }));
       } catch (e) {}
     }
@@ -1067,8 +1077,18 @@
         if (Array.isArray(s.hiddenVegs)) state.hiddenVegs = s.hiddenVegs;
         if (Array.isArray(s.hiddenPlantings)) state.hiddenPlantings = s.hiddenPlantings;
         if (s.notes && typeof s.notes === 'object') state.notes = s.notes;
+        if (s.frostDates && typeof s.frostDates === 'object') state.frostDates = s.frostDates;
         if (s.location && typeof s.location === 'object') {
-          state.location = Object.assign({ zip: '', zone: '', lat: null, lon: null, actualLastFrost: '', actualFirstFrost: '' }, s.location);
+          state.location = Object.assign({ zip: '', zone: '', lat: null, lon: null }, s.location);
+          // Migrate legacy single frost dates into the per-year map.
+          const migrate = (iso) => {
+            if (typeof iso === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(iso)) return iso.slice(0, 4);
+            return null;
+          };
+          const ly = migrate(s.location.actualLastFrost);
+          if (ly) { state.frostDates[ly] = Object.assign({ last: '', first: '' }, state.frostDates[ly]); if (!state.frostDates[ly].last) state.frostDates[ly].last = s.location.actualLastFrost; }
+          const fy = migrate(s.location.actualFirstFrost);
+          if (fy) { state.frostDates[fy] = Object.assign({ last: '', first: '' }, state.frostDates[fy]); if (!state.frostDates[fy].first) state.frostDates[fy].first = s.location.actualFirstFrost; }
         }
         if (s.weather && typeof s.weather === 'object') {
           // New shape: { data: {iso:{...}}, lastSync }. Older shape stored the
@@ -1950,17 +1970,6 @@
       sel.innerHTML = '<option value="">Not set</option>' +
         ZONE_LIST.map(z => '<option value="' + z + '"' + (z === loc.zone ? ' selected' : '') + '>Zone ' + z + '</option>').join('');
       sel.value = loc.zone || '';
-
-      const year = parseISO(state.cursor).getFullYear();
-      const tent = tentativeFrost(year);
-      const fmt = iso => { const d = parseISO(iso); return MONTHS_SHORT[d.getMonth()] + ' ' + d.getDate(); };
-      document.getElementById('tentLast').textContent = tent.last ? ('~' + fmt(tent.last)) : (loc.zone ? 'frost-free' : 'set zone');
-      document.getElementById('tentFirst').textContent = tent.first ? ('~' + fmt(tent.first)) : (loc.zone ? 'frost-free' : 'set zone');
-
-      const al = document.getElementById('actualLastFrost');
-      const af = document.getElementById('actualFirstFrost');
-      if (document.activeElement !== al) al.value = loc.actualLastFrost || '';
-      if (document.activeElement !== af) af.value = loc.actualFirstFrost || '';
     }
 
     function renderPeriodLabel() {
@@ -2273,10 +2282,48 @@
       }).join('');
     }
 
+    // A per-year frost-dates card shown at the top of the Year view. Frost
+    // dates are unique to each year: the zone provides a tentative estimate,
+    // and the user records the actual date for that year here.
+    function frostCardHtml(year) {
+      const loc = state.location || {};
+      const tent = tentativeFrost(year);
+      const act = frostActual(year);
+      const fmt = iso => { const d = parseISO(iso); return MONTHS_SHORT[d.getMonth()] + ' ' + d.getDate(); };
+      const block = (kind, title) => {
+        const f = FROST[kind];
+        const tentVal = tent[kind];
+        const est = tentVal ? ('~' + fmt(tentVal)) : (loc.zone ? 'frost-free' : 'set zone');
+        const actVal = act[kind] || '';
+        return '<div class="flex-1 min-w-0">' +
+            '<div class="flex items-center gap-1.5 mb-1">' +
+              '<span class="w-2 h-2 rounded-full" style="background:' + f.color + '"></span>' +
+              '<span class="text-xs font-semibold text-slate-600">' + title + '</span>' +
+              '<span class="ml-auto text-[11px] text-slate-400">' + est + '</span>' +
+            '</div>' +
+            '<input data-frost="' + kind + '" type="date" value="' + actVal + '" ' +
+              'class="w-full px-2 py-1 rounded text-xs border border-slate-200 bg-white outline-none focus:border-accent-500 focus:ring-1 focus:ring-accent-500" />' +
+          '</div>';
+      };
+      return '<div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 mb-4">' +
+          '<div class="flex items-center gap-2 mb-3">' +
+            '<i data-lucide="snowflake" class="w-5 h-5 text-sky-500"></i>' +
+            '<h2 class="font-bold text-slate-900">Frost Dates · ' + year + '</h2>' +
+            '<span class="ml-auto text-[11px] font-semibold text-slate-400">' + (loc.zone ? 'Zone ' + loc.zone : 'Set zone in My Zone') + '</span>' +
+          '</div>' +
+          '<div class="flex flex-col sm:flex-row gap-3">' +
+            block('last', 'Last (spring)') +
+            block('first', 'First (fall)') +
+          '</div>' +
+          '<p class="text-[10px] text-slate-400 mt-2 leading-snug">Tentative dates (from your zone) show as faded markers on the calendar; recording the actual date for ' + year + ' fills them in.</p>' +
+        '</div>';
+    }
+
     function renderYear() {
       const year = parseISO(state.cursor).getFullYear();
       const today = isoToday();
-      let html = '<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">';
+      let html = frostCardHtml(year);
+      html += '<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">';
       for (let m = 0; m < 12; m++) {
         const first = new Date(year, m, 1);
         const startPad = first.getDay();
@@ -2812,6 +2859,8 @@
     let plantTaskVarietyFilter = 'all'; // 'all' | 'whole' | variety id — filters the task list
     // Collapse state for the task groups; Completed starts collapsed.
     let plantTaskCollapse = { upcoming: false, completed: true };
+    // Per-row collapse state (by task id) for the inline task editors.
+    let plantTaskRowCollapse = {};
 
     // Build a fresh task row for the draft.
     function blankDraftTask() {
@@ -3011,6 +3060,19 @@
         const tt = TASK_TYPES[t.type] || TASK_TYPES.custom;
         const recurring = t.repeat && t.repeat !== 'none';
         const completed = isCompleted(t);
+        const rowCollapsed = !!plantTaskRowCollapse[t.id];
+        // Compact one-line recap shown when the row is collapsed: the cadence
+        // plus the next/last (recurring) or scheduled (one-time) date.
+        const rowSummary = (() => {
+          const parts = [recurring ? repeatLabel(t) : (tt.label || 'One time')];
+          const sd = sortDate(t);
+          if (sd) {
+            const d = parseISO(sd);
+            const nice = MONTHS_SHORT[d.getMonth()] + ' ' + d.getDate() + ', ' + d.getFullYear();
+            parts.push((recurring ? (sd < today ? 'last ' : 'next ') : '') + nice);
+          }
+          return parts.join(' · ');
+        })();
         // The right-hand "done" column: a checkbox for one-time tasks, or the
         // advance/complete control for recurring series.
         // A single, state-aware pill control. Its look changes with status:
@@ -3041,6 +3103,7 @@
               : pill('data-t-done="' + t.id + '" data-done="0"', 'circle', 'Mark complete', false));
         return '<div class="rounded-xl border border-slate-200 bg-slate-50/60 p-3 space-y-2' + (completed ? ' opacity-60' : '') + '" data-task-row="' + t.id + '">' +
           '<div class="flex items-center gap-2">' +
+            '<button data-task-row-toggle="' + t.id + '" type="button" class="text-slate-300 hover:text-slate-500 transition shrink-0" title="' + (rowCollapsed ? 'Expand' : 'Collapse') + '"><i data-lucide="chevron-down" class="w-4 h-4 transition-transform' + (rowCollapsed ? ' -rotate-90' : '') + '"></i></button>' +
             '<i data-lucide="' + tt.icon + '" class="w-4 h-4 shrink-0" style="color:' + tt.color + '"></i>' +
             '<select data-t-type="' + t.id + '" class="flex-1 min-w-0 px-2 py-1.5 rounded-lg text-xs font-semibold border border-slate-200 bg-white outline-none focus:border-accent-500">' + typeOpts(t) + '</select>' +
             (liveVarieties.length
@@ -3048,6 +3111,15 @@
               : '') +
             '<button data-t-del="' + t.id + '" type="button" class="text-slate-300 hover:text-rose-500 transition shrink-0" title="Remove task"><i data-lucide="trash-2" class="w-4 h-4"></i></button>' +
           '</div>' +
+          // Collapsed summary: a compact one-line schedule recap.
+          (rowCollapsed
+            ? '<div class="flex items-center gap-1.5 pl-6 text-[11px] font-semibold text-slate-400">' +
+                '<i data-lucide="' + (recurring ? 'calendar-clock' : 'calendar') + '" class="w-3.5 h-3.5"></i>' +
+                '<span>' + escapeHtml(rowSummary) + '</span>' +
+              '</div>'
+            : '') +
+          // Collapsible detail: schedule fields + notes.
+          '<div class="space-y-2' + (rowCollapsed ? ' hidden' : '') + '">' +
           (recurring
             ? (() => {
                 const next = sortDate(t);
@@ -3078,6 +3150,7 @@
             : '') +
           '<div>' +
             '<div data-t-notes="' + t.id + '" contenteditable="true" data-placeholder="Notes (optional)" class="note-content w-full px-2 py-1.5 rounded-lg text-xs border border-slate-200 bg-white outline-none focus:border-accent-500 min-h-[30px] max-h-32 overflow-y-auto empty:before:content-[attr(data-placeholder)] empty:before:text-slate-400">' + noteHtml(t.notes || '') + '</div>' +
+          '</div>' +
           '</div>' +
           '<div class="flex justify-end">' + doneControls + '</div>' +
         '</div>';
@@ -3337,6 +3410,8 @@
 
       highlightTypeButtons();
       modal.classList.remove('hidden');
+      // Reset all sections to expanded each time the modal opens.
+      if (typeof setTaskModalSections === 'function') setTaskModalSections(false);
       lucide.createIcons();
     }
     // Set the Repeat dropdown to reflect a task, using the hidden "interval"
@@ -3704,7 +3779,8 @@
       state.hiddenVegs = [];
       state.hiddenPlantings = [];
       state.notes = {};
-      state.location = { zip: '', zone: '', lat: null, lon: null, actualLastFrost: '', actualFirstFrost: '' };
+      state.frostDates = {};
+      state.location = { zip: '', zone: '', lat: null, lon: null };
       resetWeatherStore();
       seq = 1;
       renderAll();
@@ -3772,21 +3848,8 @@
       lucide.createIcons();
       scheduleSave();
     });
-    // Actual frost dates.
-    document.getElementById('actualLastFrost').addEventListener('change', e => {
-      state.location.actualLastFrost = e.target.value;
-      renderZone();
-      renderActiveView();
-      lucide.createIcons();
-      scheduleSave();
-    });
-    document.getElementById('actualFirstFrost').addEventListener('change', e => {
-      state.location.actualFirstFrost = e.target.value;
-      renderZone();
-      renderActiveView();
-      lucide.createIcons();
-      scheduleSave();
-    });
+    // Actual frost dates are recorded per-year in the Year view (see the
+    // yearView change handler).
 
 
     // Sidebar "Add Task" button.
@@ -3999,6 +4062,34 @@
     };
     collapseSection('plantVarietiesToggle', 'plantVarietiesBody', 'plantVarietiesChevron');
     collapseSection('plantTasksToggle', 'plantTasksBody', 'plantTasksChevron', ['plantTaskFilterWrap', 'plantAddTask']);
+    // Collapsible sections within the Add/Edit Garden Task modal.
+    collapseSection('taskSecDetailsToggle', 'taskSecDetailsBody', 'taskSecDetailsChevron');
+    collapseSection('taskSecScheduleToggle', 'taskSecScheduleBody', 'taskSecScheduleChevron');
+    collapseSection('taskSecLocationToggle', 'taskSecLocationBody', 'taskSecLocationChevron');
+    collapseSection('taskSecNotesToggle', 'taskSecNotesBody', 'taskSecNotesChevron');
+    // Collapse / expand every section in the task modal at once. Toggles based
+    // on whether any section is currently open.
+    const TASK_MODAL_SECTIONS = [
+      ['taskSecDetailsBody', 'taskSecDetailsChevron'],
+      ['taskSecScheduleBody', 'taskSecScheduleChevron'],
+      ['taskSecLocationBody', 'taskSecLocationChevron'],
+      ['taskSecNotesBody', 'taskSecNotesChevron'],
+    ];
+    function setTaskModalSections(collapsed) {
+      TASK_MODAL_SECTIONS.forEach(([bodyId, chevronId]) => {
+        document.getElementById(bodyId).classList.toggle('hidden', collapsed);
+        document.getElementById(chevronId).classList.toggle('-rotate-90', collapsed);
+      });
+      const btn = document.getElementById('taskCollapseAll');
+      btn.querySelector('i, svg').setAttribute('data-lucide', collapsed ? 'chevrons-up-down' : 'chevrons-down-up');
+      btn.title = collapsed ? 'Expand all sections' : 'Collapse all sections';
+      lucide.createIcons();
+    }
+    document.getElementById('taskCollapseAll').addEventListener('click', () => {
+      // If any section is open, collapse all; otherwise expand all.
+      const anyOpen = TASK_MODAL_SECTIONS.some(([bodyId]) => !document.getElementById(bodyId).classList.contains('hidden'));
+      setTaskModalSections(anyOpen);
+    });
     document.getElementById('plantName').addEventListener('input', e => {
       if (plantDraft) plantDraft.name = e.target.value;
     });
@@ -4077,6 +4168,14 @@
       if (group) {
         const key = group.dataset.taskGroup;
         plantTaskCollapse[key] = !plantTaskCollapse[key];
+        renderPlantTasks();
+        return;
+      }
+      // Collapse / expand an individual task row.
+      const rowToggle = e.target.closest('[data-task-row-toggle]');
+      if (rowToggle) {
+        const id = +rowToggle.dataset.taskRowToggle;
+        plantTaskRowCollapse[id] = !plantTaskRowCollapse[id];
         renderPlantTasks();
         return;
       }
@@ -4312,6 +4411,22 @@
       if (cell) { state.cursor = cell.dataset.day; setView('day'); }
     });
 
+    // Per-year frost date inputs in the Year view.
+    document.getElementById('yearView').addEventListener('change', e => {
+      const inp = e.target.closest('[data-frost]');
+      if (!inp) return;
+      const kind = inp.dataset.frost; // 'last' | 'first'
+      const year = String(parseISO(state.cursor).getFullYear());
+      state.frostDates = state.frostDates || {};
+      const rec = Object.assign({ last: '', first: '' }, state.frostDates[year]);
+      rec[kind] = inp.value || '';
+      if (!rec.last && !rec.first) delete state.frostDates[year];
+      else state.frostDates[year] = rec;
+      renderActiveView();
+      lucide.createIcons();
+      scheduleSave();
+    });
+
     document.getElementById('listView').addEventListener('click', e => {
       // Completion filter bar: All / Planned / Done.
       const dfBtn = e.target.closest('[data-list-done-filter]');
@@ -4498,7 +4613,8 @@
       // Demo location: Ypsilanti, MI (48197) — zone 6a.
       // Last spring frost ~May 11 (already recorded as actual); first fall
       // frost ~Oct 10 still tentative for the season.
-      state.location = { zip: '48197', zone: '6a', lat: 42.2412, lon: -83.6129, actualLastFrost: (new Date().getFullYear()) + '-05-11', actualFirstFrost: '' };
+      state.location = { zip: '48197', zone: '6a', lat: 42.2412, lon: -83.6129 };
+      state.frostDates = { [String(new Date().getFullYear())]: { last: (new Date().getFullYear()) + '-05-11', first: '' } };
       seq = 1;
 
       const y = new Date().getFullYear();
