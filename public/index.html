@@ -129,10 +129,92 @@
       #toolbarActions > div,
       #toolbarActions > button { max-width: 100%; }
     }
+
+    /* Auth gate: active tab pill. */
+    .auth-tab { color: #64748b; }
+    .auth-tab.active { background: #fff; color: #0f172a; box-shadow: 0 1px 2px rgba(0,0,0,.06); }
   </style>
 </head>
 
 <body class="bg-slate-50 text-slate-900 min-h-screen">
+
+  <!-- ============ AUTH GATE (landing / sign in / sign up) ============ -->
+  <!-- Full-screen overlay shown when Supabase is configured and no user is
+       signed in. Hidden by default to avoid a flash; boot() decides. -->
+  <div id="authGate" class="hidden fixed inset-0 z-[60] overflow-y-auto bg-gradient-to-br from-accent-50 via-slate-50 to-emerald-50">
+    <div class="min-h-full flex items-center justify-center p-4">
+      <div class="w-full max-w-md bg-white rounded-3xl border border-slate-200 shadow-xl p-7 animate-fadeUp">
+        <!-- Brand -->
+        <div class="flex items-center gap-3 mb-5">
+          <div class="w-11 h-11 rounded-2xl bg-accent-600 text-white flex items-center justify-center shadow-sm">
+            <i data-lucide="sprout" class="w-6 h-6"></i>
+          </div>
+          <div>
+            <h1 class="font-bold text-xl leading-tight text-slate-900">Garden Calendar</h1>
+            <p class="text-xs text-slate-500 mt-0.5">Plan your growing season, one task at a time</p>
+          </div>
+        </div>
+
+        <!-- Log in / Sign up tabs -->
+        <div class="flex items-center gap-1 bg-slate-100 rounded-xl p-1 mb-5">
+          <button id="authTabLogin" data-mode="login" class="auth-tab flex-1 px-3 py-2 rounded-lg text-sm font-semibold transition">Log in</button>
+          <button id="authTabSignup" data-mode="signup" class="auth-tab flex-1 px-3 py-2 rounded-lg text-sm font-semibold transition">Sign up</button>
+        </div>
+
+        <!-- Social login -->
+        <div class="space-y-2">
+          <button data-oauth="google" class="auth-oauth w-full px-4 py-2.5 rounded-xl text-sm font-semibold border border-slate-200 bg-white hover:bg-slate-50 transition flex items-center justify-center gap-2.5">
+            <svg class="w-4 h-4" viewBox="0 0 18 18" aria-hidden="true"><path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.92c1.71-1.57 2.68-3.89 2.68-6.62z"/><path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.92-2.26c-.81.54-1.84.86-3.04.86-2.34 0-4.32-1.58-5.03-3.7H.96v2.33A9 9 0 0 0 9 18z"/><path fill="#FBBC05" d="M3.97 10.72a5.4 5.4 0 0 1 0-3.44V4.95H.96a9 9 0 0 0 0 8.1l3.01-2.33z"/><path fill="#EA4335" d="M9 3.58c1.32 0 2.5.45 3.44 1.35l2.58-2.58C13.46.89 11.43 0 9 0A9 9 0 0 0 .96 4.95l3.01 2.33C4.68 5.16 6.66 3.58 9 3.58z"/></svg>
+            Continue with Google
+          </button>
+          <button data-oauth="github" class="auth-oauth w-full px-4 py-2.5 rounded-xl text-sm font-semibold border border-slate-200 bg-white hover:bg-slate-50 transition flex items-center justify-center gap-2.5">
+            <svg class="w-4 h-4" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg>
+            Continue with GitHub
+          </button>
+        </div>
+
+        <div class="flex items-center gap-3 my-4">
+          <span class="flex-1 h-px bg-slate-200"></span>
+          <span class="text-[11px] font-semibold text-slate-400 uppercase tracking-wide">or</span>
+          <span class="flex-1 h-px bg-slate-200"></span>
+        </div>
+
+        <!-- Email + password form -->
+        <form id="authForm" class="space-y-3" novalidate>
+          <div>
+            <label class="block text-[11px] font-semibold text-slate-500 mb-1">Email</label>
+            <input id="authGateEmail" type="email" inputmode="email" autocomplete="email" placeholder="you@example.com"
+              class="w-full px-3 py-2.5 rounded-xl text-sm border border-slate-200 bg-slate-50 outline-none focus:border-accent-500 focus:ring-1 focus:ring-accent-500" />
+          </div>
+          <div>
+            <label class="block text-[11px] font-semibold text-slate-500 mb-1">Password</label>
+            <div class="relative">
+              <input id="authGatePassword" type="password" autocomplete="current-password" placeholder="••••••••" minlength="6"
+                class="w-full px-3 py-2.5 pr-10 rounded-xl text-sm border border-slate-200 bg-slate-50 outline-none focus:border-accent-500 focus:ring-1 focus:ring-accent-500" />
+              <button type="button" id="authTogglePw" class="absolute inset-y-0 right-0 px-3 text-slate-400 hover:text-slate-600 transition" title="Show / hide password" tabindex="-1">
+                <i data-lucide="eye" class="w-4 h-4"></i>
+              </button>
+            </div>
+            <p id="authSignupHint" class="text-[10px] text-slate-400 mt-1 hidden">Use at least 6 characters.</p>
+          </div>
+
+          <p id="authGateMsg" class="text-xs leading-snug hidden"></p>
+
+          <button type="submit" id="authSubmit" class="w-full px-4 py-2.5 rounded-xl text-sm font-semibold bg-accent-600 text-white hover:bg-accent-700 shadow-sm transition flex items-center justify-center gap-2">
+            <span id="authSubmitLabel">Log in</span>
+          </button>
+        </form>
+
+        <!-- Continue without an account (offline-first) -->
+        <div class="mt-5 pt-4 border-t border-slate-200 text-center">
+          <button id="authSkip" class="text-xs font-semibold text-slate-500 hover:text-accent-700 transition">
+            Continue without an account →
+          </button>
+          <p class="text-[10px] text-slate-400 mt-1">Your garden is saved on this device. You can sign in later to sync.</p>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <!-- ============ HEADER ============ -->
   <header class="bg-white border-b border-slate-200 shadow-sm sticky top-0 z-20">
@@ -193,15 +275,12 @@
           <span id="syncBadge" class="ml-auto text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-500">Local only</span>
         </div>
 
-        <!-- Signed-out: magic-link sign in -->
+        <!-- Signed-out: prompt to open the auth screen -->
         <div id="authSignedOut">
-          <label class="block text-[11px] font-semibold text-slate-500 mb-1">Email</label>
-          <div class="flex items-center gap-2">
-            <input id="authEmail" type="email" inputmode="email" placeholder="you@example.com"
-              class="flex-1 min-w-0 px-3 py-1.5 rounded-lg text-sm border border-slate-200 bg-slate-50 outline-none focus:border-accent-500 focus:ring-1 focus:ring-accent-500" />
-            <button id="authSignIn" class="px-3 py-2 rounded-lg text-xs font-semibold bg-accent-600 text-white hover:bg-accent-700 shadow-sm transition shrink-0">Sign in</button>
-          </div>
-          <p id="authHint" class="text-[10px] text-slate-400 mt-2 leading-snug">Sign in with a magic link to sync your garden across devices. Your data stays on this device until you do.</p>
+          <p class="text-[11px] text-slate-500 leading-snug mb-2.5">Create an account or log in to sync your garden across devices. Your data stays on this device until you do.</p>
+          <button id="authOpenGate" class="w-full px-3 py-2 rounded-lg text-xs font-semibold bg-accent-600 text-white hover:bg-accent-700 shadow-sm transition flex items-center justify-center gap-1.5">
+            <i data-lucide="log-in" class="w-3.5 h-3.5"></i> Sign in / Sign up
+          </button>
         </div>
 
         <!-- Signed-in: identity + sign out -->
@@ -5429,21 +5508,94 @@
         }
       }
 
-      async function signIn() {
-        if (!sb) return;
-        const email = ($('authEmail').value || '').trim();
-        if (!email) { $('authEmail').focus(); return; }
-        const hint = $('authHint');
-        const { error } = await sb.auth.signInWithOtp({
-          email,
-          options: { emailRedirectTo: location.origin },
-        });
-        if (hint) {
-          hint.textContent = error
-            ? ('Could not send link: ' + error.message)
-            : 'Check your email for a sign-in link.';
-          hint.classList.toggle('text-rose-500', !!error);
+      // ----- Auth gate (landing / login / signup / social) -----
+      let authMode = 'login';      // 'login' | 'signup'
+      let authBusy = false;
+
+      function authGateShow() {
+        const gate = $('authGate');
+        if (!gate) return;
+        gate.classList.remove('hidden');
+        authSetMode('login');
+        authMsg('', null);
+        if (window.lucide) lucide.createIcons();
+        setTimeout(() => { const el = $('authGateEmail'); if (el) el.focus(); }, 30);
+      }
+      function authGateHide() { const g = $('authGate'); if (g) g.classList.add('hidden'); }
+
+      // Show a status/error message inside the gate.
+      function authMsg(text, tone) {
+        const el = $('authGateMsg');
+        if (!el) return;
+        el.textContent = text || '';
+        el.classList.toggle('hidden', !text);
+        el.classList.toggle('text-rose-600', tone === 'error');
+        el.classList.toggle('text-accent-700', tone === 'ok');
+        el.classList.toggle('text-slate-500', tone === 'info');
+      }
+
+      // Switch between Log in / Sign up modes.
+      function authSetMode(mode) {
+        authMode = mode;
+        document.querySelectorAll('.auth-tab').forEach(t =>
+          t.classList.toggle('active', t.dataset.mode === mode));
+        $('authSubmitLabel').textContent = mode === 'signup' ? 'Create account' : 'Log in';
+        $('authSignupHint').classList.toggle('hidden', mode !== 'signup');
+        const pw = $('authGatePassword');
+        if (pw) pw.setAttribute('autocomplete', mode === 'signup' ? 'new-password' : 'current-password');
+        authMsg('', null);
+      }
+
+      function authSetBusy(b) {
+        authBusy = b;
+        const btn = $('authSubmit');
+        if (btn) { btn.disabled = b; btn.classList.toggle('opacity-60', b); btn.classList.toggle('cursor-wait', b); }
+      }
+
+      // Email + password submit — logs in or signs up depending on the mode.
+      async function authSubmit(e) {
+        if (e) e.preventDefault();
+        if (!sb || authBusy) return;
+        const email = ($('authGateEmail').value || '').trim();
+        const password = $('authGatePassword').value || '';
+        if (!email) { authMsg('Enter your email.', 'error'); $('authGateEmail').focus(); return; }
+        if (password.length < 6) { authMsg('Password must be at least 6 characters.', 'error'); $('authGatePassword').focus(); return; }
+
+        authSetBusy(true);
+        authMsg(authMode === 'signup' ? 'Creating your account…' : 'Signing in…', 'info');
+        try {
+          if (authMode === 'signup') {
+            const { data, error } = await sb.auth.signUp({ email, password });
+            if (error) { authMsg(error.message, 'error'); return; }
+            if (data.session) {
+              // Confirmation disabled → signed in immediately.
+              authGateHide();
+            } else {
+              // Confirmation enabled → user must verify via email first.
+              authMsg('Account created. Check your email to confirm, then log in.', 'ok');
+              authSetMode('login');
+            }
+          } else {
+            const { error } = await sb.auth.signInWithPassword({ email, password });
+            if (error) { authMsg(error.message, 'error'); return; }
+            authGateHide();
+          }
+        } catch (err) {
+          authMsg('Something went wrong. Please try again.', 'error');
+        } finally {
+          authSetBusy(false);
         }
+      }
+
+      // Social / OAuth login. Redirects away and back to the app.
+      async function authOAuth(provider) {
+        if (!sb) return;
+        authMsg('Redirecting to ' + provider + '…', 'info');
+        const { error } = await sb.auth.signInWithOAuth({
+          provider,
+          options: { redirectTo: location.origin },
+        });
+        if (error) authMsg(error.message, 'error');
       }
 
       async function signOut() {
@@ -5467,20 +5619,39 @@
         $('accountCard').classList.remove('hidden');
         if (window.lucide) lucide.createIcons();
 
-        $('authSignIn').addEventListener('click', signIn);
-        $('authEmail').addEventListener('keydown', (e) => { if (e.key === 'Enter') signIn(); });
+        // Sidebar: open the full-screen auth gate; sign out.
+        $('authOpenGate').addEventListener('click', authGateShow);
         $('authSignOut').addEventListener('click', signOut);
+
+        // Auth gate wiring.
+        document.querySelectorAll('.auth-tab').forEach(t =>
+          t.addEventListener('click', () => authSetMode(t.dataset.mode)));
+        document.querySelectorAll('.auth-oauth').forEach(b =>
+          b.addEventListener('click', () => authOAuth(b.dataset.oauth)));
+        $('authForm').addEventListener('submit', authSubmit);
+        $('authSkip').addEventListener('click', authGateHide);
+        $('authTogglePw').addEventListener('click', () => {
+          const pw = $('authGatePassword');
+          const icon = $('authTogglePw').querySelector('i');
+          const show = pw.type === 'password';
+          pw.type = show ? 'text' : 'password';
+          if (icon) { icon.setAttribute('data-lucide', show ? 'eye-off' : 'eye'); if (window.lucide) lucide.createIcons(); }
+        });
+        document.addEventListener('keydown', (e) => {
+          if (e.key === 'Escape' && !$('authGate').classList.contains('hidden')) authGateHide();
+        });
 
         const { data: { session: initial } } = await sb.auth.getSession();
         session = initial;
-        if (session) { showSignedIn(session.user.email); reconcile(); }
-        else { showSignedOut(); }
+        if (session) { showSignedIn(session.user.email); authGateHide(); reconcile(); }
+        else { showSignedOut(); authGateShow(); }
 
         sb.auth.onAuthStateChange((_event, newSession) => {
           const wasSignedIn = !!session;
           session = newSession;
           if (session) {
             showSignedIn(session.user.email);
+            authGateHide();
             if (!wasSignedIn) reconcile();
           } else {
             showSignedOut();
