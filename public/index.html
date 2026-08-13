@@ -117,6 +117,17 @@
 
       /* Reclaim a little horizontal room for the calendar on small screens. */
       main { padding-left: 0.75rem; padding-right: 0.75rem; }
+
+      /* Toolbar filter/Add-Task group: move to its own full-width row and let
+         the buttons wrap so they stay inside the card instead of overflowing. */
+      #toolbarActions {
+        flex-basis: 100%;
+        margin-left: 0;
+        flex-wrap: wrap;
+        justify-content: flex-start;
+      }
+      #toolbarActions > div,
+      #toolbarActions > button { max-width: 100%; }
     }
   </style>
 </head>
@@ -291,7 +302,7 @@
           <i data-lucide="sticky-note" class="w-4 h-4"></i>
         </button>
 
-        <div class="ml-auto flex items-center gap-2">
+        <div id="toolbarActions" class="ml-auto flex items-center gap-2">
           <div class="relative" id="plantFilterWrap">
             <button id="plantFilterBtn" type="button" class="px-3 py-2 rounded-lg text-xs font-semibold border border-slate-200 bg-slate-50 outline-none hover:border-accent-500 transition flex items-center gap-1.5 max-w-[180px]"></button>
             <div id="plantFilterMenu" class="hidden absolute right-0 mt-1 w-56 bg-white rounded-xl border border-slate-200 shadow-lg py-1 z-30 max-h-80 overflow-auto"></div>
