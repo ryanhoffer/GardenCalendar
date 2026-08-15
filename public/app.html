@@ -319,7 +319,10 @@
         <div class="flex items-center gap-2 mb-3">
           <i data-lucide="cloud" class="w-5 h-5 text-accent-600"></i>
           <h2 class="font-bold text-slate-900">Account</h2>
-          <span id="syncBadge" class="ml-auto text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-500">Local only</span>
+          <button id="settingsBtn" class="ml-auto w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition" title="Settings">
+            <i data-lucide="settings" class="w-4 h-4"></i>
+          </button>
+          <span id="syncBadge" class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-500">Local only</span>
         </div>
 
         <!-- Signed-out: prompt to open the auth screen -->
@@ -790,6 +793,86 @@
             <i data-lucide="plus" class="w-3.5 h-3.5"></i> Add note
           </button>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ SETTINGS ============ -->
+  <div id="settingsModal" class="hidden fixed inset-0 z-40 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-xl w-full max-w-md max-h-[90vh] flex flex-col animate-fadeUp">
+      <div class="flex items-center gap-2 px-5 py-4 border-b border-slate-200">
+        <i data-lucide="settings" class="w-5 h-5 text-accent-600"></i>
+        <h3 class="font-bold leading-tight">Settings</h3>
+        <button id="settingsClose" class="ml-auto text-slate-400 hover:text-slate-700 transition">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <div class="px-5 py-4 space-y-6 overflow-y-auto flex-1">
+        <!-- Account -->
+        <section>
+          <h4 class="text-xs font-bold uppercase tracking-wide text-slate-400 mb-2">Account</h4>
+          <div id="settingsAccount">
+            <div class="flex items-center gap-2 mb-3">
+              <div class="w-9 h-9 rounded-full bg-accent-100 text-accent-700 flex items-center justify-center shrink-0">
+                <i data-lucide="user" class="w-4 h-4"></i>
+              </div>
+              <div class="min-w-0 flex-1">
+                <p class="text-[10px] font-semibold text-slate-400">Email</p>
+                <p id="settingsEmail" class="text-sm font-semibold text-slate-700 truncate">—</p>
+              </div>
+            </div>
+
+            <!-- Signed-in actions -->
+            <div id="settingsSignedIn" class="hidden space-y-3">
+              <div>
+                <label class="block text-[11px] font-semibold text-slate-500 mb-1">Change password</label>
+                <div class="flex items-center gap-2">
+                  <input id="settingsPassword" type="password" autocomplete="new-password" minlength="6" placeholder="New password (min 6)"
+                    class="flex-1 min-w-0 px-3 py-2 rounded-lg text-sm border border-slate-200 bg-slate-50 outline-none focus:border-accent-500 focus:ring-1 focus:ring-accent-500" />
+                  <button id="settingsPasswordSave" class="px-3 py-2 rounded-lg text-xs font-semibold bg-slate-900 text-white hover:bg-slate-800 shadow-sm transition shrink-0">Update</button>
+                </div>
+                <p id="settingsPasswordMsg" class="text-[11px] mt-1 hidden"></p>
+              </div>
+              <button id="settingsSignOut" class="w-full px-3 py-2 rounded-lg text-xs font-semibold bg-slate-100 text-slate-600 hover:bg-rose-100 hover:text-rose-700 transition">Sign out</button>
+            </div>
+
+            <!-- Signed-out prompt -->
+            <div id="settingsSignedOut" class="hidden">
+              <p class="text-[11px] text-slate-500 leading-snug mb-2">Sign in to sync your garden across devices and back it up.</p>
+              <button id="settingsSignIn" class="w-full px-3 py-2 rounded-lg text-xs font-semibold bg-accent-600 text-white hover:bg-accent-700 shadow-sm transition flex items-center justify-center gap-1.5">
+                <i data-lucide="log-in" class="w-3.5 h-3.5"></i> Sign in / Sign up
+              </button>
+            </div>
+          </div>
+        </section>
+
+        <!-- Location / Zone -->
+        <section>
+          <h4 class="text-xs font-bold uppercase tracking-wide text-slate-400 mb-2">Location</h4>
+          <label class="block text-[11px] font-semibold text-slate-500 mb-1">ZIP code</label>
+          <input id="settingsZip" type="text" inputmode="numeric" maxlength="5" placeholder="e.g. 80202"
+            class="w-full px-3 py-2 rounded-lg text-sm border border-slate-200 bg-slate-50 outline-none focus:border-accent-500 focus:ring-1 focus:ring-accent-500 mb-1" />
+          <p id="settingsZipHint" class="text-[10px] text-rose-500 mb-2 leading-snug hidden"></p>
+          <label class="block text-[11px] font-semibold text-slate-500 mb-1">Hardiness zone</label>
+          <select id="settingsZone" class="w-full px-3 py-2 rounded-lg text-sm border border-slate-200 bg-slate-50 outline-none focus:border-accent-500 focus:ring-1 focus:ring-accent-500">
+            <option value="">Not set</option>
+          </select>
+          <p class="text-[10px] text-slate-400 mt-1 leading-snug">Sets tentative frost dates and enables local weather.</p>
+        </section>
+
+        <!-- Data -->
+        <section>
+          <h4 class="text-xs font-bold uppercase tracking-wide text-slate-400 mb-2">Data</h4>
+          <div class="flex items-center gap-2">
+            <button id="settingsExport" class="flex-1 px-3 py-2 rounded-lg text-xs font-semibold bg-slate-100 text-slate-700 hover:bg-accent-100 hover:text-accent-700 transition flex items-center justify-center gap-1.5">
+              <i data-lucide="download" class="w-3.5 h-3.5"></i> Export (Markdown)
+            </button>
+            <button id="settingsClear" class="flex-1 px-3 py-2 rounded-lg text-xs font-semibold bg-slate-100 text-slate-700 hover:bg-rose-100 hover:text-rose-700 transition flex items-center justify-center gap-1.5">
+              <i data-lucide="trash-2" class="w-3.5 h-3.5"></i> Clear all data
+            </button>
+          </div>
+        </section>
       </div>
     </div>
   </div>
@@ -2245,6 +2328,16 @@
       sel.innerHTML = '<option value="">Not set</option>' +
         ZONE_LIST.map(z => '<option value="' + z + '"' + (z === loc.zone ? ' selected' : '') + '>Zone ' + z + '</option>').join('');
       sel.value = loc.zone || '';
+
+      // Mirror into the Settings modal's copies (kept in sync with the sidebar).
+      const sZip = document.getElementById('settingsZip');
+      if (sZip && document.activeElement !== sZip) sZip.value = loc.zip || '';
+      const sSel = document.getElementById('settingsZone');
+      if (sSel) {
+        sSel.innerHTML = '<option value="">Not set</option>' +
+          ZONE_LIST.map(z => '<option value="' + z + '"' + (z === loc.zone ? ' selected' : '') + '>Zone ' + z + '</option>').join('');
+        sSel.value = loc.zone || '';
+      }
     }
 
     function renderPeriodLabel() {
@@ -5191,11 +5284,78 @@
       if (e.target.id === 'taskModal') closeTaskModal();
     });
     document.addEventListener('keydown', e => {
-      if (e.key === 'Escape') { closeTaskModal(); closeNoteModal(); closePlantModal(); closeLocationModal(); searchClose(); }
+      if (e.key === 'Escape') { closeTaskModal(); closeNoteModal(); closePlantModal(); closeLocationModal(); searchClose(); closeSettings(); }
     });
 
     document.getElementById('resetBtn').addEventListener('click', resetAll);
     document.getElementById('exportBtn').addEventListener('click', exportData);
+
+    // ----- Settings modal -----
+    function openSettings() {
+      // Reflect the current auth state.
+      const api = window.AccountAPI || {};
+      const signedIn = api.isSignedIn && api.isSignedIn();
+      document.getElementById('settingsEmail').textContent = (signedIn && api.getEmail && api.getEmail()) || 'Not signed in';
+      document.getElementById('settingsSignedIn').classList.toggle('hidden', !signedIn);
+      document.getElementById('settingsSignedOut').classList.toggle('hidden', !!signedIn);
+      const pwMsg = document.getElementById('settingsPasswordMsg');
+      pwMsg.classList.add('hidden'); pwMsg.textContent = '';
+      document.getElementById('settingsPassword').value = '';
+      renderZone(); // fills the mirrored zip/zone fields
+      document.getElementById('settingsModal').classList.remove('hidden');
+      if (window.lucide) lucide.createIcons();
+    }
+    function closeSettings() { document.getElementById('settingsModal').classList.add('hidden'); }
+
+    document.getElementById('settingsBtn').addEventListener('click', openSettings);
+    document.getElementById('settingsClose').addEventListener('click', closeSettings);
+    document.getElementById('settingsModal').addEventListener('click', e => {
+      if (e.target.id === 'settingsModal') closeSettings();
+    });
+
+    // Account actions
+    document.getElementById('settingsSignIn').addEventListener('click', () => {
+      closeSettings();
+      if (window.AccountAPI && window.AccountAPI.openSignIn) window.AccountAPI.openSignIn();
+    });
+    document.getElementById('settingsSignOut').addEventListener('click', () => {
+      if (window.AccountAPI && window.AccountAPI.signOut) window.AccountAPI.signOut();
+      closeSettings();
+    });
+    document.getElementById('settingsPasswordSave').addEventListener('click', async () => {
+      const input = document.getElementById('settingsPassword');
+      const msg = document.getElementById('settingsPasswordMsg');
+      const pw = input.value || '';
+      const show = (text, ok) => { msg.textContent = text; msg.className = 'text-[11px] mt-1 ' + (ok ? 'text-accent-700' : 'text-rose-500'); msg.classList.remove('hidden'); };
+      if (pw.length < 6) { show('Password must be at least 6 characters.', false); input.focus(); return; }
+      show('Updating…', true);
+      try {
+        const { error } = await window.AccountAPI.changePassword(pw);
+        if (error) { show(error.message || 'Could not update password.', false); return; }
+        show('Password updated.', true);
+        input.value = '';
+      } catch (_e) {
+        show('Something went wrong. Please try again.', false);
+      }
+    });
+
+    // Location: delegate to the sidebar inputs so all the existing geocode /
+    // frost-date logic runs unchanged.
+    document.getElementById('settingsZip').addEventListener('input', e => {
+      const sidebar = document.getElementById('zipInput');
+      sidebar.value = (e.target.value || '').replace(/[^0-9]/g, '').slice(0, 5);
+      e.target.value = sidebar.value;
+      sidebar.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    document.getElementById('settingsZone').addEventListener('change', e => {
+      const sidebar = document.getElementById('zoneSelect');
+      sidebar.value = e.target.value;
+      sidebar.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+
+    // Data actions
+    document.getElementById('settingsExport').addEventListener('click', exportData);
+    document.getElementById('settingsClear').addEventListener('click', () => { resetAll(); closeSettings(); });
     document.getElementById('demoBtn').addEventListener('click', resetDemoData);
 
     // Period (month / year) note button.
@@ -6116,6 +6276,21 @@
           }
         });
       }
+
+      // Minimal account API for the Settings panel (main script lives outside
+      // this module). Guards against a missing Supabase client / signed-out.
+      window.AccountAPI = {
+        isConfigured: () => !!sb,
+        isSignedIn: () => !!session,
+        getEmail: () => (session && session.user && session.user.email) || null,
+        async changePassword(password) {
+          if (!sb) return { error: { message: 'Cloud sync is not configured.' } };
+          if (!session) return { error: { message: 'You are not signed in.' } };
+          return sb.auth.updateUser({ password });
+        },
+        signOut: () => { if (sb) sb.auth.signOut(); },
+        openSignIn: () => { try { authGateShow(); } catch (_e) {} },
+      };
 
       // Defer until the main app script has run (globals + initial render).
       if (document.readyState === 'loading') {
