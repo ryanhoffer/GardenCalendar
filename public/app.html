@@ -2688,9 +2688,13 @@
 
       // --- Day note ---
       // Compact banner that opens the shared note modal, matching how week and
-      // month notes look and behave.
+      // month notes look and behave. Sits next to an Add task button.
       const dayKey = 'day:' + iso;
       const noteBlock = periodNoteBanner(dayKey, 'Add a note for this day', 'Edit day note');
+      const addTaskBtn =
+        '<button data-add-day="' + iso + '" class="shrink-0 inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold bg-accent-600 text-white hover:bg-accent-700 shadow-sm transition" title="Add a task for this day">' +
+          '<i data-lucide="plus" class="w-3.5 h-3.5"></i> Add task' +
+        '</button>';
 
       el.innerHTML =
         '<div class="flex items-start justify-between gap-3 mb-4">' +
@@ -2701,7 +2705,7 @@
             '<h2 class="text-2xl font-bold text-slate-900">' + MONTHS[d.getMonth()] + ' ' + d.getDate() + ', ' + d.getFullYear() + '</h2>' +
           '</div>' +
         '</div>' +
-        noteBlock +
+        '<div class="flex items-start gap-2 mb-4"><div class="min-w-0 flex-1">' + noteBlock + '</div>' + addTaskBtn + '</div>' +
         '<div class="grid gap-3 sm:grid-cols-2 mb-5">' +
           weatherBanner +
           (frost ? '<div class="flex flex-wrap items-center gap-2">' + frost + '</div>' : '<div></div>') +
