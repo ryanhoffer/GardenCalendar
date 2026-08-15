@@ -1,0 +1,640 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex, nofollow" />
+  <title>Garden Calendar — Admin</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    body { font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+    .tab.active { background:#fff; color:#0f172a; box-shadow:0 1px 2px rgba(0,0,0,.06); }
+    /* Sortable table headers */
+    th.sortable { cursor: pointer; user-select: none; white-space: nowrap; }
+    th.sortable:hover { color:#0f172a; }
+    th.sortable::after { content:'↕'; opacity:.35; margin-left:.35em; font-size:.85em; }
+    th.sortable.sort-asc::after { content:'↑'; opacity:1; }
+    th.sortable.sort-desc::after { content:'↓'; opacity:1; }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-900 min-h-screen">
+
+  <!-- ============ SIGN-IN GATE ============ -->
+  <div id="gate" class="hidden fixed inset-0 z-40 bg-slate-50 flex items-center justify-center p-4">
+    <div class="w-full max-w-sm bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+      <div class="flex items-center gap-2 mb-4">
+        <div class="w-9 h-9 rounded-xl bg-slate-900 text-white flex items-center justify-center">
+          <i data-lucide="shield" class="w-5 h-5"></i>
+        </div>
+        <div>
+          <h1 class="font-bold text-lg leading-tight">Admin</h1>
+          <p class="text-xs text-slate-500">Garden Calendar</p>
+        </div>
+      </div>
+      <label class="block text-[11px] font-semibold text-slate-500 mb-1">Email</label>
+      <input id="email" type="email" placeholder="you@example.com"
+        class="w-full mb-2 px-3 py-2 rounded-lg text-sm border border-slate-200 bg-slate-50 outline-none focus:border-slate-400" />
+      <label class="block text-[11px] font-semibold text-slate-500 mb-1">Password</label>
+      <input id="password" type="password" placeholder="••••••••"
+        class="w-full mb-3 px-3 py-2 rounded-lg text-sm border border-slate-200 bg-slate-50 outline-none focus:border-slate-400" />
+      <button id="signInBtn" class="w-full px-4 py-2 rounded-lg text-sm font-semibold bg-slate-900 text-white hover:bg-slate-800 transition">Sign in</button>
+      <p id="gateMsg" class="text-xs text-rose-600 mt-2 hidden"></p>
+      <p class="text-[10px] text-slate-400 mt-3">Admin accounts only. Non-admins are signed out.</p>
+    </div>
+  </div>
+
+  <!-- ============ APP ============ -->
+  <div id="app" class="hidden">
+    <div id="demoBanner" class="hidden bg-amber-100 text-amber-800 text-xs font-semibold text-center py-1.5 px-4">
+      Demo mode — in-memory mock data, nothing is saved. Changes reset on reload.
+      <a href="?demo=0" class="underline hover:no-underline">Exit demo</a>
+    </div>
+    <header class="bg-white border-b border-slate-200 sticky top-0 z-20">
+      <div class="max-w-6xl mx-auto px-5 py-3 flex items-center gap-3">
+        <div class="w-8 h-8 rounded-lg bg-slate-900 text-white flex items-center justify-center">
+          <i data-lucide="shield" class="w-4 h-4"></i>
+        </div>
+        <h1 class="font-bold">Admin</h1>
+        <span class="text-xs text-slate-400">·</span>
+        <a href="/" class="text-xs font-semibold text-slate-500 hover:text-slate-900">← Back to app</a>
+        <div class="ml-auto flex items-center gap-3">
+          <span id="whoami" class="text-xs text-slate-500"></span>
+          <button id="signOutBtn" class="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-slate-100 text-slate-600 hover:bg-rose-100 hover:text-rose-700 transition">Sign out</button>
+        </div>
+      </div>
+    </header>
+
+    <main class="max-w-6xl mx-auto px-5 py-6 space-y-6">
+
+      <!-- Metrics -->
+      <section id="metrics" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3"></section>
+
+      <!-- Tabs -->
+      <div class="flex items-center gap-1 bg-slate-100 rounded-xl p-1 w-fit">
+        <button data-tab="users" class="tab px-3 py-1.5 rounded-lg text-sm font-semibold transition">Users</button>
+        <button data-tab="codes" class="tab px-3 py-1.5 rounded-lg text-sm font-semibold transition">Discount codes</button>
+        <button data-tab="comp" class="tab px-3 py-1.5 rounded-lg text-sm font-semibold transition">Provision access</button>
+      </div>
+
+      <!-- ===== Users tab ===== -->
+      <section id="tab-users" class="tab-panel">
+        <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+          <div class="p-4 flex flex-wrap items-center gap-2 border-b border-slate-200">
+            <input id="userSearch" type="text" placeholder="Search by email…"
+              class="flex-1 min-w-[180px] px-3 py-2 rounded-lg text-sm border border-slate-200 bg-slate-50 outline-none focus:border-slate-400" />
+            <select id="statusFilter" class="px-3 py-2 rounded-lg text-sm border border-slate-200 bg-slate-50 outline-none">
+              <option value="">All statuses</option>
+              <option value="trialing">Trialing</option>
+              <option value="active">Active</option>
+              <option value="past_due">Past due</option>
+              <option value="canceled">Canceled</option>
+              <option value="inactive">Inactive</option>
+            </select>
+            <button id="userSearchBtn" class="px-3 py-2 rounded-lg text-sm font-semibold bg-slate-900 text-white hover:bg-slate-800 transition">Search</button>
+          </div>
+          <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+              <thead class="bg-slate-50 text-slate-500 text-xs uppercase tracking-wide">
+                <tr id="userHead">
+                  <th data-sort="email" class="sortable text-left font-semibold px-4 py-2.5">Email</th>
+                  <th data-sort="plan" class="sortable text-left font-semibold px-4 py-2.5">Plan</th>
+                  <th data-sort="status" class="sortable text-left font-semibold px-4 py-2.5">Status</th>
+                  <th data-sort="current_period_end" class="sortable text-left font-semibold px-4 py-2.5">Renews</th>
+                  <th data-sort="comp_reason" class="sortable text-left font-semibold px-4 py-2.5">Comped</th>
+                  <th data-sort="created_at" class="sortable text-left font-semibold px-4 py-2.5">Joined</th>
+                </tr>
+              </thead>
+              <tbody id="userRows"></tbody>
+            </table>
+          </div>
+          <div class="p-3 flex items-center justify-between text-xs text-slate-500 border-t border-slate-200">
+            <span id="userCount">—</span>
+            <div class="flex gap-2">
+              <button id="prevPage" class="px-2.5 py-1.5 rounded-lg font-semibold bg-slate-100 hover:bg-slate-200 disabled:opacity-40">Prev</button>
+              <button id="nextPage" class="px-2.5 py-1.5 rounded-lg font-semibold bg-slate-100 hover:bg-slate-200 disabled:opacity-40">Next</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===== Discount codes tab ===== -->
+      <section id="tab-codes" class="tab-panel hidden">
+        <div class="grid lg:grid-cols-[320px_1fr] gap-4">
+          <!-- Create -->
+          <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 h-fit">
+            <h3 class="font-bold mb-3 flex items-center gap-2"><i data-lucide="ticket" class="w-4 h-4 text-slate-500"></i> New code</h3>
+            <label class="block text-[11px] font-semibold text-slate-500 mb-1">Code</label>
+            <input id="codeCode" type="text" placeholder="SPRING25" class="w-full mb-2 px-3 py-2 rounded-lg text-sm border border-slate-200 bg-slate-50 outline-none focus:border-slate-400 uppercase" />
+            <div class="grid grid-cols-2 gap-2">
+              <div>
+                <label class="block text-[11px] font-semibold text-slate-500 mb-1">Type</label>
+                <select id="codeType" class="w-full px-3 py-2 rounded-lg text-sm border border-slate-200 bg-slate-50 outline-none">
+                  <option value="percent">Percent %</option>
+                  <option value="amount">Amount (cents)</option>
+                  <option value="free_period">Free period</option>
+                </select>
+              </div>
+              <div>
+                <label class="block text-[11px] font-semibold text-slate-500 mb-1">Value</label>
+                <input id="codeValue" type="number" min="0" placeholder="25" class="w-full px-3 py-2 rounded-lg text-sm border border-slate-200 bg-slate-50 outline-none" />
+              </div>
+            </div>
+            <div class="grid grid-cols-2 gap-2 mt-2">
+              <div>
+                <label class="block text-[11px] font-semibold text-slate-500 mb-1">Duration</label>
+                <select id="codeDuration" class="w-full px-3 py-2 rounded-lg text-sm border border-slate-200 bg-slate-50 outline-none">
+                  <option value="once">Once</option>
+                  <option value="repeating">Repeating</option>
+                  <option value="forever">Forever</option>
+                </select>
+              </div>
+              <div>
+                <label class="block text-[11px] font-semibold text-slate-500 mb-1">Max redemptions</label>
+                <input id="codeMax" type="number" min="0" placeholder="∞" class="w-full px-3 py-2 rounded-lg text-sm border border-slate-200 bg-slate-50 outline-none" />
+              </div>
+            </div>
+            <label class="block text-[11px] font-semibold text-slate-500 mb-1 mt-2">Expires (optional)</label>
+            <input id="codeExpires" type="date" class="w-full mb-3 px-3 py-2 rounded-lg text-sm border border-slate-200 bg-slate-50 outline-none" />
+            <button id="codeCreateBtn" class="w-full px-4 py-2 rounded-lg text-sm font-semibold bg-slate-900 text-white hover:bg-slate-800 transition">Create code</button>
+            <p id="codeMsg" class="text-xs mt-2 hidden"></p>
+            <p class="text-[10px] text-slate-400 mt-2">Placeholder — Stripe coupon mirroring is not wired up yet.</p>
+          </div>
+          <!-- List -->
+          <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+            <div class="overflow-x-auto">
+              <table class="w-full text-sm">
+                <thead class="bg-slate-50 text-slate-500 text-xs uppercase tracking-wide">
+                  <tr id="codeHead">
+                    <th data-sort="code" class="sortable text-left font-semibold px-4 py-2.5">Code</th>
+                    <th data-sort="type" class="sortable text-left font-semibold px-4 py-2.5">Type</th>
+                    <th data-sort="value" class="sortable text-left font-semibold px-4 py-2.5">Value</th>
+                    <th data-sort="redemptions" class="sortable text-left font-semibold px-4 py-2.5">Used</th>
+                    <th data-sort="expires_at" class="sortable text-left font-semibold px-4 py-2.5">Expires</th>
+                    <th data-sort="active" class="sortable text-left font-semibold px-4 py-2.5">Active</th>
+                  </tr>
+                </thead>
+                <tbody id="codeRows"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===== Provision access tab ===== -->
+      <section id="tab-comp" class="tab-panel hidden">
+        <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 max-w-md">
+          <h3 class="font-bold mb-1 flex items-center gap-2"><i data-lucide="gift" class="w-4 h-4 text-slate-500"></i> Grant / revoke free access</h3>
+          <p class="text-xs text-slate-500 mb-4">Comp a user's account (full Pro access, no charge) or revoke it.</p>
+          <label class="block text-[11px] font-semibold text-slate-500 mb-1">User email</label>
+          <input id="compEmail" type="email" placeholder="user@example.com" class="w-full mb-2 px-3 py-2 rounded-lg text-sm border border-slate-200 bg-slate-50 outline-none focus:border-slate-400" />
+          <label class="block text-[11px] font-semibold text-slate-500 mb-1">Reason (optional)</label>
+          <input id="compReason" type="text" placeholder="Beta tester" class="w-full mb-3 px-3 py-2 rounded-lg text-sm border border-slate-200 bg-slate-50 outline-none focus:border-slate-400" />
+          <div class="flex gap-2">
+            <button id="grantBtn" class="flex-1 px-4 py-2 rounded-lg text-sm font-semibold bg-emerald-600 text-white hover:bg-emerald-700 transition">Grant access</button>
+            <button id="revokeBtn" class="flex-1 px-4 py-2 rounded-lg text-sm font-semibold bg-slate-100 text-slate-700 hover:bg-rose-100 hover:text-rose-700 transition">Revoke</button>
+          </div>
+          <p id="compMsg" class="text-xs mt-2 hidden"></p>
+          <p class="text-[10px] text-slate-400 mt-3">Placeholder — currently sets profile fields directly; Stripe 100%-off coupon path is TODO.</p>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <script>
+    // ---- Supabase client (public config from /api/config) ----
+    let sb = null, session = null, token = null;
+    const $ = (id) => document.getElementById(id);
+    const show = (el, on) => el.classList.toggle('hidden', !on);
+
+    // Demo mode: no Supabase/Stripe needed. Enabled via ?demo=1 (or persisted in
+    // localStorage), or auto-enabled when the backend isn't configured. Serves
+    // in-memory mock data so the whole panel is usable during development.
+    const DEMO = (() => {
+      const p = new URLSearchParams(location.search);
+      if (p.get('demo') === '1') { try { localStorage.setItem('adminDemo', '1'); } catch (_e) {} return true; }
+      if (p.get('demo') === '0') { try { localStorage.removeItem('adminDemo'); } catch (_e) {} return false; }
+      try { return localStorage.getItem('adminDemo') === '1'; } catch (_e) { return false; }
+    })();
+
+    async function boot() {
+      if (DEMO) { bootDemo(); return; }
+
+      let cfg = null;
+      try { const r = await fetch('/api/config'); if (r.ok) cfg = await r.json(); } catch (_e) {}
+      if (!cfg || !cfg.configured || !window.supabase) {
+        // No backend yet — offer demo mode instead of a dead end.
+        document.body.innerHTML =
+          '<div class="p-10 text-center text-slate-500 max-w-md mx-auto">' +
+          '<p class="mb-4">Backend not configured.</p>' +
+          '<a href="?demo=1" class="inline-block px-4 py-2 rounded-lg text-sm font-semibold bg-slate-900 text-white hover:bg-slate-800">Open demo mode →</a>' +
+          '</div>';
+        return;
+      }
+      sb = window.supabase.createClient(cfg.supabaseUrl, cfg.supabaseAnonKey);
+      lucide.createIcons();
+
+      const { data: { session: s } } = await sb.auth.getSession();
+      session = s; token = s && s.access_token;
+      if (session) enterApp(); else show($('gate'), true);
+
+      wire();
+    }
+
+    // Enter the panel directly with mock data, skipping real auth.
+    function bootDemo() {
+      session = { user: { email: 'demo-admin@example.com' } };
+      token = 'demo';
+      lucide.createIcons();
+      wire();
+      enterApp();
+    }
+
+    function wire() {
+      $('signInBtn').addEventListener('click', signIn);
+      $('password').addEventListener('keydown', e => { if (e.key === 'Enter') signIn(); });
+      $('signOutBtn').addEventListener('click', async () => {
+        if (DEMO) { try { localStorage.removeItem('adminDemo'); } catch (_e) {} location.href = location.pathname; return; }
+        await sb.auth.signOut(); location.reload();
+      });
+
+      document.querySelectorAll('.tab').forEach(t =>
+        t.addEventListener('click', () => setTab(t.dataset.tab)));
+
+      $('userSearchBtn').addEventListener('click', () => { userOffset = 0; loadUsers(); });
+      $('userSearch').addEventListener('keydown', e => { if (e.key === 'Enter') { userOffset = 0; loadUsers(); } });
+      $('statusFilter').addEventListener('change', () => { userOffset = 0; loadUsers(); });
+      $('prevPage').addEventListener('click', () => { userOffset = Math.max(0, userOffset - userLimit); loadUsers(); });
+      $('nextPage').addEventListener('click', () => { userOffset += userLimit; loadUsers(); });
+
+      $('codeCreateBtn').addEventListener('click', createCode);
+      $('grantBtn').addEventListener('click', () => provision('grant'));
+      $('revokeBtn').addEventListener('click', () => provision('revoke'));
+
+      // Sortable table headers.
+      wireSortHeader('userHead',
+        () => ({ sort: userSort, dir: userDir }),
+        (k, d) => { userSort = k; userDir = d; userOffset = 0; },
+        loadUsers);
+      wireSortHeader('codeHead',
+        () => ({ sort: codeSort, dir: codeDir }),
+        (k, d) => { codeSort = k; codeDir = d; },
+        renderCodes);
+    }
+
+    async function signIn() {
+      const email = $('email').value.trim();
+      const password = $('password').value;
+      msg($('gateMsg'), '', null);
+      const { error } = await sb.auth.signInWithPassword({ email, password });
+      if (error) { msg($('gateMsg'), error.message, 'error'); return; }
+      const { data: { session: s } } = await sb.auth.getSession();
+      session = s; token = s && s.access_token;
+      enterApp();
+    }
+
+    async function enterApp() {
+      // Verify admin by hitting a protected endpoint; non-admins get 403.
+      const ok = await api('/api/admin/metrics');
+      if (!ok) {
+        // Not an admin (or error) — sign out and show the gate.
+        if (sb) await sb.auth.signOut();
+        show($('gate'), true); show($('app'), false);
+        msg($('gateMsg'), 'This account is not an admin.', 'error');
+        return;
+      }
+      show($('gate'), false); show($('app'), true);
+      show($('demoBanner'), DEMO);
+      $('whoami').textContent = (DEMO ? 'DEMO · ' : '') + session.user.email;
+      renderMetrics(ok);
+      setTab('users');
+      loadUsers();
+      loadCodes();
+      lucide.createIcons();
+    }
+
+    // ---- Authenticated fetch helper. Returns parsed JSON or null on error. ----
+    async function api(path, opts) {
+      opts = opts || {};
+      if (DEMO) return demoApi(path, opts);   // route to the in-memory mock
+      try {
+        const r = await fetch(path, {
+          method: opts.method || 'GET',
+          headers: {
+            'Authorization': 'Bearer ' + token,
+            ...(opts.body ? { 'Content-Type': 'application/json' } : {}),
+          },
+          body: opts.body ? JSON.stringify(opts.body) : undefined,
+        });
+        const data = await r.json().catch(() => ({}));
+        if (!r.ok) { console.warn(path, r.status, data); return null; }
+        return data;
+      } catch (e) { console.warn(path, e); return null; }
+    }
+
+    // ---- Tabs ----
+    function setTab(name) {
+      document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === name));
+      document.querySelectorAll('.tab-panel').forEach(p => p.classList.add('hidden'));
+      $('tab-' + name).classList.remove('hidden');
+    }
+
+    // ---- Metrics ----
+    function renderMetrics(data) {
+      const u = (data && data.users) || {};
+      const cards = [
+        ['Total users', u.total, 'users'],
+        ['Active', u.active, 'badge-check'],
+        ['Trialing', u.trialing, 'hourglass'],
+        ['Past due', u.pastDue, 'alert-triangle'],
+        ['Canceled', u.canceled, 'x-circle'],
+        ['Comped', u.comped, 'gift'],
+      ];
+      $('metrics').innerHTML = cards.map(([label, val, icon]) =>
+        '<div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-3">' +
+          '<div class="flex items-center gap-1.5 text-slate-400 mb-1"><i data-lucide="' + icon + '" class="w-3.5 h-3.5"></i>' +
+          '<span class="text-[10px] font-bold uppercase tracking-wide">' + label + '</span></div>' +
+          '<div class="text-2xl font-bold">' + (val == null ? '—' : val) + '</div>' +
+        '</div>').join('');
+      lucide.createIcons();
+    }
+
+    // ---- Users ----
+    let userOffset = 0, userLimit = 50, userTotal = 0;
+    let userSort = 'created_at', userDir = 'desc';
+    async function loadUsers() {
+      const params = new URLSearchParams();
+      const q = $('userSearch').value.trim(); if (q) params.set('q', q);
+      const st = $('statusFilter').value; if (st) params.set('status', st);
+      params.set('limit', userLimit); params.set('offset', userOffset);
+      params.set('sort', userSort); params.set('dir', userDir);
+      const data = await api('/api/admin/users?' + params.toString());
+      const rows = (data && data.users) || [];
+      userTotal = (data && data.total) || 0;
+      $('userRows').innerHTML = rows.length ? rows.map(userRow).join('')
+        : '<tr><td colspan="6" class="px-4 py-8 text-center text-slate-400">No users found.</td></tr>';
+      $('userCount').textContent = userTotal + ' user' + (userTotal === 1 ? '' : 's') +
+        ' · showing ' + (rows.length ? (userOffset + 1) : 0) + '–' + (userOffset + rows.length);
+      $('prevPage').disabled = userOffset === 0;
+      $('nextPage').disabled = userOffset + userLimit >= userTotal;
+      updateSortIndicators($('userHead'), userSort, userDir);
+      lucide.createIcons();
+    }
+    function userRow(u) {
+      const badge = statusBadge(u.status);
+      const comped = u.comp_reason ? '<span class="text-emerald-600" title="' + esc(u.comp_reason) + '">✓</span>' : '';
+      return '<tr class="border-t border-slate-100">' +
+        '<td class="px-4 py-2.5 font-medium">' + esc(u.email || '—') + '</td>' +
+        '<td class="px-4 py-2.5">' + esc(u.plan || 'none') + '</td>' +
+        '<td class="px-4 py-2.5">' + badge + '</td>' +
+        '<td class="px-4 py-2.5 text-slate-500">' + fmtDate(u.current_period_end) + '</td>' +
+        '<td class="px-4 py-2.5">' + comped + '</td>' +
+        '<td class="px-4 py-2.5 text-slate-500">' + fmtDate(u.created_at) + '</td>' +
+      '</tr>';
+    }
+    function statusBadge(s) {
+      const map = {
+        active: 'bg-emerald-100 text-emerald-700', trialing: 'bg-sky-100 text-sky-700',
+        past_due: 'bg-amber-100 text-amber-700', canceled: 'bg-rose-100 text-rose-700',
+        inactive: 'bg-slate-100 text-slate-500',
+      };
+      const cls = map[s] || 'bg-slate-100 text-slate-500';
+      return '<span class="text-[11px] font-bold px-2 py-0.5 rounded-full ' + cls + '">' + esc(s || 'inactive') + '</span>';
+    }
+
+    // ---- Discount codes ----
+    let codesCache = [];
+    let codeSort = 'created_at', codeDir = 'desc';
+    async function loadCodes() {
+      const data = await api('/api/admin/discount-codes');
+      codesCache = (data && data.codes) || [];
+      renderCodes();
+    }
+    function renderCodes() {
+      const rows = sortRows(codesCache.slice(), codeSort, codeDir);
+      $('codeRows').innerHTML = rows.length ? rows.map(codeRow).join('')
+        : '<tr><td colspan="6" class="px-4 py-8 text-center text-slate-400">No codes yet.</td></tr>';
+      updateSortIndicators($('codeHead'), codeSort, codeDir);
+    }
+    function codeRow(c) {
+      const used = c.redemptions + (c.max_redemptions != null ? ' / ' + c.max_redemptions : '');
+      const val = c.type === 'percent' ? c.value + '%' : c.type === 'amount' ? '$' + (c.value / 100).toFixed(2) : c.value;
+      return '<tr class="border-t border-slate-100">' +
+        '<td class="px-4 py-2.5 font-mono font-semibold">' + esc(c.code) + '</td>' +
+        '<td class="px-4 py-2.5">' + esc(c.type) + '</td>' +
+        '<td class="px-4 py-2.5">' + esc(String(val)) + '</td>' +
+        '<td class="px-4 py-2.5">' + esc(String(used)) + '</td>' +
+        '<td class="px-4 py-2.5 text-slate-500">' + fmtDate(c.expires_at) + '</td>' +
+        '<td class="px-4 py-2.5">' + (c.active ? '✓' : '—') + '</td>' +
+      '</tr>';
+    }
+    async function createCode() {
+      const body = {
+        code: $('codeCode').value.trim(),
+        type: $('codeType').value,
+        value: Number($('codeValue').value),
+        duration: $('codeDuration').value,
+        maxRedemptions: $('codeMax').value ? Number($('codeMax').value) : null,
+        expiresAt: $('codeExpires').value || null,
+      };
+      if (!body.code) { msg($('codeMsg'), 'Enter a code.', 'error'); return; }
+      const data = await api('/api/admin/discount-codes', { method: 'POST', body });
+      if (!data) { msg($('codeMsg'), 'Could not create code (duplicate or error).', 'error'); return; }
+      msg($('codeMsg'), 'Created ' + data.code.code + '.', 'ok');
+      $('codeCode').value = ''; $('codeValue').value = '';
+      loadCodes();
+    }
+
+    // ---- Provision access ----
+    async function provision(action) {
+      const email = $('compEmail').value.trim();
+      const reason = $('compReason').value.trim();
+      if (!email) { msg($('compMsg'), 'Enter an email.', 'error'); return; }
+      const data = await api('/api/admin/grant-access', { method: 'POST', body: { email, action, reason } });
+      if (!data) { msg($('compMsg'), 'Failed (user not found or error).', 'error'); return; }
+      msg($('compMsg'), (action === 'grant' ? 'Granted' : 'Revoked') + ' access for ' + email + '.', 'ok');
+      loadUsers();
+      const m = await api('/api/admin/metrics'); if (m) renderMetrics(m);
+    }
+
+    // ---- utils ----
+    function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c])); }
+    function fmtDate(iso) { if (!iso) return '—'; const d = new Date(iso); return isNaN(d) ? '—' : d.toLocaleDateString(); }
+    function msg(el, text, tone) {
+      el.textContent = text; show(el, !!text);
+      el.className = 'text-xs mt-2 ' + (tone === 'error' ? 'text-rose-600' : tone === 'ok' ? 'text-emerald-600' : 'text-slate-500');
+    }
+
+    // ---- Sorting ----
+    // Compare two values with sensible handling for null, numbers, dates, and
+    // strings. Nulls always sort last regardless of direction.
+    function cmp(a, b, dir) {
+      const av = a == null || a === '' ? null : a;
+      const bv = b == null || b === '' ? null : b;
+      if (av === null && bv === null) return 0;
+      if (av === null) return 1;     // nulls last
+      if (bv === null) return -1;
+      let r;
+      const an = Number(av), bn = Number(bv);
+      const bothNum = !isNaN(an) && !isNaN(bn) && typeof av !== 'boolean';
+      if (typeof av === 'boolean' || typeof bv === 'boolean') {
+        r = (av === bv) ? 0 : (av ? 1 : -1);
+      } else if (bothNum) {
+        r = an - bn;
+      } else {
+        // Try dates; fall back to case-insensitive string compare.
+        const ad = Date.parse(av), bd = Date.parse(bv);
+        if (!isNaN(ad) && !isNaN(bd)) r = ad - bd;
+        else r = String(av).toLowerCase().localeCompare(String(bv).toLowerCase());
+      }
+      return dir === 'desc' ? -r : r;
+    }
+    function sortRows(rows, key, dir) {
+      return rows.sort((a, b) => cmp(a[key], b[key], dir));
+    }
+    // Toggle the sort arrow classes on a header row.
+    function updateSortIndicators(headEl, key, dir) {
+      if (!headEl) return;
+      headEl.querySelectorAll('th.sortable').forEach(th => {
+        th.classList.remove('sort-asc', 'sort-desc');
+        if (th.dataset.sort === key) th.classList.add(dir === 'asc' ? 'sort-asc' : 'sort-desc');
+      });
+    }
+    // Wire clicks on a header row: toggle direction on the active column, else
+    // switch to that column (default ascending, but dates default descending).
+    function wireSortHeader(headId, getState, setState, reload) {
+      const head = $(headId);
+      if (!head) return;
+      head.addEventListener('click', e => {
+        const th = e.target.closest('th.sortable');
+        if (!th) return;
+        const key = th.dataset.sort;
+        const { sort, dir } = getState();
+        let nextDir;
+        if (sort === key) nextDir = dir === 'asc' ? 'desc' : 'asc';
+        else nextDir = /_at$|_end$/.test(key) ? 'desc' : 'asc';
+        setState(key, nextDir);
+        reload();
+      });
+    }
+
+    // =====================================================================
+    // DEMO MODE — in-memory mock backend. Mirrors the shape of the real
+    // /api/admin/* endpoints so the UI behaves identically without Supabase
+    // or Stripe. Data resets on reload (nothing is persisted server-side).
+    // =====================================================================
+    const demoStore = (() => {
+      const now = Date.now(), DAY = 86400000;
+      const iso = (msOffset) => new Date(now + msOffset).toISOString();
+      const firstNames = ['Ava','Ben','Cara','Dan','Elle','Finn','Gia','Hugo','Iris','Jae','Kim','Leo','Mia','Noah','Opal','Pia','Quinn','Ravi','Sana','Tom','Uma','Vic','Wren','Xan','Yara','Zed'];
+      const plans = [
+        { plan: 'pro', status: 'active' },
+        { plan: 'pro', status: 'trialing' },
+        { plan: 'pro', status: 'past_due' },
+        { plan: 'none', status: 'canceled' },
+        { plan: 'none', status: 'inactive' },
+      ];
+      // Generate ~37 believable users with a spread of statuses.
+      const users = [];
+      for (let i = 0; i < 37; i++) {
+        const name = firstNames[i % firstNames.length].toLowerCase();
+        const pick = plans[i % plans.length];
+        const comped = i % 11 === 0;
+        users.push({
+          user_id: 'demo-' + i,
+          email: name + (i > 25 ? i : '') + '@example.com',
+          role: i === 0 ? 'admin' : 'user',
+          plan: comped ? 'pro' : pick.plan,
+          status: comped ? 'active' : pick.status,
+          stripe_customer_id: pick.plan === 'pro' ? 'cus_demo' + i : null,
+          current_period_end: (pick.status === 'active' || pick.status === 'trialing')
+            ? iso((10 + i % 20) * DAY) : null,
+          cancel_at_period_end: i % 7 === 0,
+          comp_reason: comped ? 'Beta tester' : null,
+          created_at: iso(-(i * 3 + 1) * DAY),
+        });
+      }
+      const codes = [
+        { code: 'SPRING25', type: 'percent', value: 25, duration: 'once', max_redemptions: 100, redemptions: 12, expires_at: iso(30 * DAY), active: true, stripe_coupon_id: null, created_at: iso(-5 * DAY) },
+        { code: 'LAUNCH10', type: 'percent', value: 10, duration: 'forever', max_redemptions: null, redemptions: 48, expires_at: null, active: true, stripe_coupon_id: null, created_at: iso(-20 * DAY) },
+        { code: 'FREEMONTH', type: 'free_period', value: 1, duration: 'once', max_redemptions: 50, redemptions: 50, expires_at: iso(-2 * DAY), active: false, stripe_coupon_id: null, created_at: iso(-40 * DAY) },
+      ];
+      return { users, codes };
+    })();
+
+    // Simulate network latency + the real endpoints' behavior.
+    async function demoApi(path, opts) {
+      await new Promise(r => setTimeout(r, 120));
+      const method = (opts.method || 'GET').toUpperCase();
+      const url = new URL(path, location.origin);
+      const p = url.pathname;
+
+      if (p === '/api/admin/metrics') return demoMetrics();
+
+      if (p === '/api/admin/users' && method === 'GET') {
+        const q = (url.searchParams.get('q') || '').toLowerCase();
+        const status = url.searchParams.get('status') || '';
+        const limit = Math.min(parseInt(url.searchParams.get('limit'), 10) || 50, 200);
+        const offset = parseInt(url.searchParams.get('offset'), 10) || 0;
+        const sort = url.searchParams.get('sort') || 'created_at';
+        const dir = url.searchParams.get('dir') === 'asc' ? 'asc' : 'desc';
+        let list = demoStore.users.slice();
+        if (q) list = list.filter(u => u.email.toLowerCase().includes(q));
+        if (status) list = list.filter(u => u.status === status);
+        list.sort((a, b) => cmp(a[sort], b[sort], dir));
+        return { users: list.slice(offset, offset + limit), total: list.length, limit, offset };
+      }
+
+      if (p === '/api/admin/discount-codes' && method === 'GET') {
+        return { codes: demoStore.codes.slice().sort((a, b) => b.created_at.localeCompare(a.created_at)) };
+      }
+      if (p === '/api/admin/discount-codes' && method === 'POST') {
+        const b = opts.body || {};
+        const code = String(b.code || '').trim().toUpperCase();
+        if (!code) return null;
+        if (demoStore.codes.some(c => c.code === code)) return null; // duplicate
+        const rec = {
+          code, type: b.type || 'percent', value: Number(b.value) || 0,
+          duration: b.duration || 'once',
+          max_redemptions: b.maxRedemptions != null ? Number(b.maxRedemptions) : null,
+          redemptions: 0,
+          expires_at: b.expiresAt ? new Date(b.expiresAt).toISOString() : null,
+          active: true, stripe_coupon_id: null, created_at: new Date().toISOString(),
+        };
+        demoStore.codes.push(rec);
+        return { code: rec };
+      }
+
+      if (p === '/api/admin/grant-access' && method === 'POST') {
+        const b = opts.body || {};
+        const email = String(b.email || '').trim().toLowerCase();
+        const u = demoStore.users.find(x => x.email.toLowerCase() === email);
+        if (!u) return null; // 404 in the real API → null here
+        if (b.action === 'revoke') { u.plan = 'none'; u.status = 'inactive'; u.comp_reason = null; }
+        else { u.plan = 'pro'; u.status = 'active'; u.comp_reason = (b.reason || 'Comped by admin'); }
+        return { ok: true, email, action: b.action, profile: u };
+      }
+
+      console.warn('demoApi: unhandled', method, p);
+      return null;
+    }
+
+    function demoMetrics() {
+      const u = demoStore.users;
+      const c = (s) => u.filter(x => x.status === s).length;
+      return {
+        users: {
+          total: u.length, active: c('active'), trialing: c('trialing'),
+          pastDue: c('past_due'), canceled: c('canceled'),
+          comped: u.filter(x => x.comp_reason).length,
+        },
+        revenue: { mrr: null, currency: 'usd', note: 'Demo — no billing.' },
+      };
+    }
+
+    boot();
+  </script>
+</body>
+</html>
