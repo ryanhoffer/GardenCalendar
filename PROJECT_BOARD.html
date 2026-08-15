@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex, nofollow" />
+  <title>Garden Calendar — Project Board (local only)</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body { font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+    .card { cursor: grab; }
+    .card:active { cursor: grabbing; }
+    .card.dragging { opacity: .45; }
+    .col-drop.drag-over { background: #eef2ff; outline: 2px dashed #a5b4fc; outline-offset: -6px; }
+    ::-webkit-scrollbar { width: 10px; height: 10px; }
+    ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 8px; }
+  </style>
+</head>
+<body class="bg-slate-100 text-slate-900 min-h-screen">
+
+  <header class="bg-white border-b border-slate-200 sticky top-0 z-20">
+    <div class="max-w-[1400px] mx-auto px-5 py-3 flex items-center gap-3 flex-wrap">
+      <div class="w-8 h-8 rounded-lg bg-slate-900 text-white flex items-center justify-center font-bold">✓</div>
+      <div>
+        <h1 class="font-bold leading-tight">Project Board</h1>
+        <p class="text-[11px] text-slate-500">Garden Calendar · local only (this file never deploys)</p>
+      </div>
+      <div class="ml-auto flex items-center gap-2 text-sm">
+        <span id="stats" class="text-xs text-slate-500 mr-1"></span>
+        <button id="addBtn" class="px-3 py-1.5 rounded-lg font-semibold bg-slate-900 text-white hover:bg-slate-800 transition">+ Add task</button>
+        <button id="exportBtn" class="px-3 py-1.5 rounded-lg font-semibold bg-slate-100 text-slate-700 hover:bg-slate-200 transition">Export</button>
+        <button id="importBtn" class="px-3 py-1.5 rounded-lg font-semibold bg-slate-100 text-slate-700 hover:bg-slate-200 transition">Import</button>
+        <button id="resetBtn" class="px-3 py-1.5 rounded-lg font-semibold bg-slate-100 text-slate-600 hover:bg-rose-100 hover:text-rose-700 transition">Reset</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="max-w-[1400px] mx-auto px-5 py-6">
+    <div id="board" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4"></div>
+  </main>
+
+  <!-- Editor modal -->
+  <div id="modal" class="hidden fixed inset-0 z-40 flex items-center justify-center p-4">
+    <div id="modalOverlay" class="absolute inset-0 bg-slate-900/40"></div>
+    <div class="relative w-full max-w-lg bg-white rounded-2xl border border-slate-200 shadow-xl p-5">
+      <h2 id="modalTitle" class="font-bold text-lg mb-4">Add task</h2>
+      <label class="block text-[11px] font-semibold text-slate-500 mb-1">Title</label>
+      <input id="fTitle" type="text" placeholder="Short summary"
+        class="w-full mb-3 px-3 py-2 rounded-lg text-sm border border-slate-200 bg-slate-50 outline-none focus:border-slate-400" />
+      <label class="block text-[11px] font-semibold text-slate-500 mb-1">Notes</label>
+      <textarea id="fNotes" rows="3" placeholder="Details, acceptance criteria, links…"
+        class="w-full mb-3 px-3 py-2 rounded-lg text-sm border border-slate-200 bg-slate-50 outline-none focus:border-slate-400"></textarea>
+      <div class="flex gap-3 mb-4">
+        <div class="flex-1">
+          <label class="block text-[11px] font-semibold text-slate-500 mb-1">Priority</label>
+          <select id="fPriority" class="w-full px-3 py-2 rounded-lg text-sm border border-slate-200 bg-slate-50 outline-none">
+            <option value="P0">P0 — blocker</option>
+            <option value="P1">P1 — high</option>
+            <option value="P2" selected>P2 — normal</option>
+            <option value="P3">P3 — nice to have</option>
+          </select>
+        </div>
+        <div class="flex-1">
+          <label class="block text-[11px] font-semibold text-slate-500 mb-1">Tag</label>
+          <input id="fTag" type="text" placeholder="auth, billing, ui…"
+            class="w-full px-3 py-2 rounded-lg text-sm border border-slate-200 bg-slate-50 outline-none focus:border-slate-400" />
+        </div>
+        <div class="flex-1">
+          <label class="block text-[11px] font-semibold text-slate-500 mb-1">Column</label>
+          <select id="fColumn" class="w-full px-3 py-2 rounded-lg text-sm border border-slate-200 bg-slate-50 outline-none"></select>
+        </div>
+      </div>
+      <div class="flex items-center gap-2">
+        <button id="fSave" class="px-4 py-2 rounded-lg text-sm font-semibold bg-slate-900 text-white hover:bg-slate-800 transition">Save</button>
+        <button id="fCancel" class="px-4 py-2 rounded-lg text-sm font-semibold bg-slate-100 text-slate-700 hover:bg-slate-200 transition">Cancel</button>
+        <button id="fDelete" class="ml-auto px-4 py-2 rounded-lg text-sm font-semibold bg-slate-100 text-slate-600 hover:bg-rose-100 hover:text-rose-700 transition hidden">Delete</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Hidden file input for import -->
+  <input id="importFile" type="file" accept="application/json" class="hidden" />
+
+  <script>
+    const STORAGE_KEY = 'gardenCalendar.projectBoard.v1';
+    const COLUMNS = [
+      { id: 'backlog', title: 'Backlog',     accent: 'bg-slate-400' },
+      { id: 'todo',    title: 'To do',        accent: 'bg-sky-500' },
+      { id: 'doing',   title: 'In progress',  accent: 'bg-amber-500' },
+      { id: 'done',    title: 'Done',         accent: 'bg-emerald-500' },
+    ];
+    const PRIORITY_STYLE = {
+      P0: 'bg-rose-100 text-rose-700',
+      P1: 'bg-amber-100 text-amber-700',
+      P2: 'bg-sky-100 text-sky-700',
+      P3: 'bg-slate-100 text-slate-500',
+    };
+
+    // ---- Seed data: the remaining Garden Calendar tasks ----
+    function seed() {
+      const t = (title, column, priority, tag, notes) =>
+        ({ id: uid(), title, column, priority, tag, notes: notes || '', created: Date.now() });
+      return [
+        // Launch blockers
+        t('Rotate Supabase DB password', 'todo', 'P0', 'security',
+          'The database password was exposed in a chat. Reset it in Supabase → Project Settings → Database → Reset database password, then update any local env/SUPABASE_DB_PASSWORD.'),
+        t('Replace Tailwind CDN with a build step', 'todo', 'P0', 'build',
+          'Both index.html and admin.html load cdn.tailwindcss.com, which warns against production use. Add a real Tailwind build (CLI or PostCSS) and ship a compiled CSS file.'),
+        t('Configure production SMTP + re-enable email confirmation', 'backlog', 'P1', 'auth',
+          'Built-in Supabase email sender is rate-limited. Add SMTP (Resend/SendGrid) under Authentication → Emails, then turn email confirmation back on before a serious launch.'),
+        t('Pin CDN versions (Lucide, Supabase JS)', 'backlog', 'P2', 'build',
+          'Replace @latest with pinned versions for reproducible builds and to avoid surprise breakage.'),
+        t('Decide on admin demo mode for launch', 'backlog', 'P2', 'admin',
+          'Keep ?demo=1 mock backend (harmless, behind a flag) or strip it for a smaller admin.html. Currently isolated in a clearly-marked block.'),
+        t('Flip ALLOW_GUEST to false for launch (verify)', 'todo', 'P1', 'auth',
+          'Guest access is gated behind ALLOW_GUEST (default false). Confirm the hard sign-in wall behaves on production; ?guest=1 re-enables for dev.'),
+
+        // Stripe go-live
+        t('Create Stripe Product + Prices ($4.99/mo, $49.99/yr)', 'todo', 'P0', 'billing',
+          'In the Stripe dashboard (test mode first): Product "Garden Calendar Pro" with monthly and yearly prices. Note the price IDs.'),
+        t('Set Stripe env vars in Vercel', 'todo', 'P0', 'billing',
+          'STRIPE_SECRET_KEY, STRIPE_PUBLISHABLE_KEY, STRIPE_PRICE_MONTHLY, STRIPE_PRICE_YEARLY, APP_URL. Then redeploy.'),
+        t('Register Stripe webhook → /api/stripe-webhook', 'todo', 'P0', 'billing',
+          'Add the endpoint in Stripe, copy the signing secret into STRIPE_WEBHOOK_SECRET. Verify events sync to profiles.'),
+        t('Enable Stripe Customer Portal', 'backlog', 'P1', 'billing',
+          'Turn on the Billing Customer Portal so users can manage/cancel. "Manage subscription" button already wired.'),
+        t('Full Stripe test pass (test cards)', 'backlog', 'P1', 'billing',
+          'Run BILLING.md §7: successful subscribe, failed payment, 3DS, trial→active, cancel, comped. Then switch to live keys.'),
+
+        // Auth / providers
+        t('Set Supabase Site URL + Redirect URLs', 'todo', 'P1', 'auth',
+          'Authentication → URL Configuration: Site URL = production URL; Redirect URLs include production + http://localhost:5500.'),
+        t('(Optional) Wire up Google OAuth', 'backlog', 'P3', 'auth',
+          'GitHub is live. Google needs a Cloud OAuth client + enabling the provider in Supabase. Buttons + error handling already built.'),
+
+        // Admin polish
+        t('Admin: apply discount code from user drawer', 'backlog', 'P3', 'admin',
+          'Optional enhancement — apply a discount code to a customer directly from the detail drawer.'),
+        t('Admin: audit-log history view', 'backlog', 'P3', 'admin',
+          'Surface admin_audit_log (who did what) in the panel, e.g. per-user in the drawer.'),
+
+        // Done (recently shipped this session)
+        t('Global command-palette search (⌘K)', 'done', 'P2', 'ui'),
+        t('Reimagined auth: email/password + social + forgot password', 'done', 'P1', 'auth'),
+        t('Stripe billing code: checkout, portal, webhook, paywall UI', 'done', 'P0', 'billing'),
+        t('Admin panel scaffold + demo mode', 'done', 'P1', 'admin'),
+        t('Admin: sortable columns', 'done', 'P2', 'admin'),
+        t('Admin: search users as you type', 'done', 'P2', 'admin'),
+        t('Admin: user detail drawer with subscription actions', 'done', 'P1', 'admin'),
+        t('Apply Supabase migrations + make admin + verify DB', 'done', 'P0', 'infra'),
+        t('Enable GitHub OAuth (verified live)', 'done', 'P1', 'auth'),
+        t('Gate guest access behind ALLOW_GUEST flag', 'done', 'P1', 'auth'),
+        t('Fix weather latitude=null 400 on ZIP change + invalid ZIP feedback', 'done', 'P1', 'bug'),
+      ];
+    }
+
+    // ---- State ----
+    let cards = [];
+    let editingId = null;
+
+    function uid() { return 'c' + Math.random().toString(36).slice(2, 9); }
+    function $(id) { return document.getElementById(id); }
+    function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c])); }
+
+    function load() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (raw) { cards = JSON.parse(raw); return; }
+      } catch (e) {}
+      cards = seed();
+      save();
+    }
+    function save() {
+      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(cards)); } catch (e) {}
+      renderStats();
+    }
+
+    // ---- Render ----
+    function render() {
+      const board = $('board');
+      board.innerHTML = COLUMNS.map(col => {
+        const items = cards.filter(c => c.column === col.id);
+        return (
+          '<section class="bg-slate-50/60 rounded-2xl border border-slate-200 flex flex-col min-h-[200px]">' +
+            '<div class="flex items-center gap-2 px-4 py-3 border-b border-slate-200">' +
+              '<span class="w-2.5 h-2.5 rounded-full ' + col.accent + '"></span>' +
+              '<h2 class="font-bold text-sm">' + col.title + '</h2>' +
+              '<span class="ml-auto text-xs font-bold text-slate-400">' + items.length + '</span>' +
+            '</div>' +
+            '<div class="col-drop flex-1 p-3 space-y-2.5" data-col="' + col.id + '">' +
+              items.map(cardHtml).join('') +
+            '</div>' +
+          '</section>'
+        );
+      }).join('');
+      wireDnd();
+      renderStats();
+    }
+
+    function cardHtml(c) {
+      const pr = PRIORITY_STYLE[c.priority] || PRIORITY_STYLE.P2;
+      const done = c.column === 'done';
+      return (
+        '<article class="card bg-white rounded-xl border border-slate-200 shadow-sm p-3" draggable="true" data-id="' + c.id + '">' +
+          '<div class="flex items-start gap-2">' +
+            '<p class="text-sm font-semibold leading-snug flex-1 ' + (done ? 'line-through text-slate-400' : 'text-slate-800') + '">' + esc(c.title) + '</p>' +
+          '</div>' +
+          (c.notes ? '<p class="text-[11px] text-slate-500 mt-1 leading-snug line-clamp-3">' + esc(c.notes) + '</p>' : '') +
+          '<div class="flex items-center gap-1.5 mt-2">' +
+            '<span class="text-[10px] font-bold px-1.5 py-0.5 rounded ' + pr + '">' + esc(c.priority) + '</span>' +
+            (c.tag ? '<span class="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-slate-100 text-slate-500">' + esc(c.tag) + '</span>' : '') +
+            '<button class="edit-btn ml-auto text-[11px] font-semibold text-slate-400 hover:text-slate-700" data-id="' + c.id + '">Edit</button>' +
+          '</div>' +
+        '</article>'
+      );
+    }
+
+    function renderStats() {
+      const total = cards.length;
+      const done = cards.filter(c => c.column === 'done').length;
+      const open = total - done;
+      const p0 = cards.filter(c => c.priority === 'P0' && c.column !== 'done').length;
+      $('stats').textContent = open + ' open · ' + done + ' done' + (p0 ? ' · ' + p0 + ' P0' : '');
+    }
+
+    // ---- Drag & drop ----
+    function wireDnd() {
+      document.querySelectorAll('.card').forEach(el => {
+        el.addEventListener('dragstart', e => {
+          el.classList.add('dragging');
+          e.dataTransfer.setData('text/plain', el.dataset.id);
+          e.dataTransfer.effectAllowed = 'move';
+        });
+        el.addEventListener('dragend', () => el.classList.remove('dragging'));
+      });
+      document.querySelectorAll('.col-drop').forEach(drop => {
+        drop.addEventListener('dragover', e => { e.preventDefault(); drop.classList.add('drag-over'); });
+        drop.addEventListener('dragleave', () => drop.classList.remove('drag-over'));
+        drop.addEventListener('drop', e => {
+          e.preventDefault();
+          drop.classList.remove('drag-over');
+          const id = e.dataTransfer.getData('text/plain');
+          const card = cards.find(c => c.id === id);
+          if (!card) return;
+          card.column = drop.dataset.col;
+          // Reorder: move to end of the target column's slice.
+          cards = cards.filter(c => c.id !== id).concat(card);
+          save();
+          render();
+        });
+      });
+      document.querySelectorAll('.edit-btn').forEach(b =>
+        b.addEventListener('click', e => { e.stopPropagation(); openModal(b.dataset.id); }));
+      document.querySelectorAll('.card').forEach(el =>
+        el.addEventListener('dblclick', () => openModal(el.dataset.id)));
+    }
+
+    // ---- Modal ----
+    function fillColumnSelect() {
+      $('fColumn').innerHTML = COLUMNS.map(c => '<option value="' + c.id + '">' + c.title + '</option>').join('');
+    }
+    function openModal(id) {
+      editingId = id || null;
+      const c = id ? cards.find(x => x.id === id) : null;
+      $('modalTitle').textContent = c ? 'Edit task' : 'Add task';
+      $('fTitle').value = c ? c.title : '';
+      $('fNotes').value = c ? c.notes : '';
+      $('fPriority').value = c ? c.priority : 'P2';
+      $('fTag').value = c ? (c.tag || '') : '';
+      $('fColumn').value = c ? c.column : 'todo';
+      $('fDelete').classList.toggle('hidden', !c);
+      $('modal').classList.remove('hidden');
+      setTimeout(() => $('fTitle').focus(), 20);
+    }
+    function closeModal() { $('modal').classList.add('hidden'); editingId = null; }
+    function saveModal() {
+      const title = $('fTitle').value.trim();
+      if (!title) { $('fTitle').focus(); return; }
+      const data = {
+        title,
+        notes: $('fNotes').value.trim(),
+        priority: $('fPriority').value,
+        tag: $('fTag').value.trim(),
+        column: $('fColumn').value,
+      };
+      if (editingId) {
+        const c = cards.find(x => x.id === editingId);
+        if (c) Object.assign(c, data);
+      } else {
+        cards.push(Object.assign({ id: uid(), created: Date.now() }, data));
+      }
+      save();
+      render();
+      closeModal();
+    }
+    function deleteCard() {
+      if (!editingId) return;
+      if (!confirm('Delete this task?')) return;
+      cards = cards.filter(c => c.id !== editingId);
+      save();
+      render();
+      closeModal();
+    }
+
+    // ---- Export / import / reset ----
+    function exportJson() {
+      const blob = new Blob([JSON.stringify(cards, null, 2)], { type: 'application/json' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'garden-calendar-board.json';
+      a.click();
+      URL.revokeObjectURL(a.href);
+    }
+    function importJson(file) {
+      const reader = new FileReader();
+      reader.onload = () => {
+        try {
+          const data = JSON.parse(reader.result);
+          if (Array.isArray(data)) { cards = data; save(); render(); }
+          else alert('That file doesn’t look like a board export.');
+        } catch (e) { alert('Could not read that file.'); }
+      };
+      reader.readAsText(file);
+    }
+    function resetBoard() {
+      if (!confirm('Reset the board to the seeded task list? This clears your changes.')) return;
+      cards = seed();
+      save();
+      render();
+    }
+
+    // ---- Wire ----
+    function wire() {
+      fillColumnSelect();
+      $('addBtn').addEventListener('click', () => openModal(null));
+      $('fSave').addEventListener('click', saveModal);
+      $('fCancel').addEventListener('click', closeModal);
+      $('fDelete').addEventListener('click', deleteCard);
+      $('modalOverlay').addEventListener('click', closeModal);
+      $('exportBtn').addEventListener('click', exportJson);
+      $('importBtn').addEventListener('click', () => $('importFile').click());
+      $('importFile').addEventListener('change', e => { if (e.target.files[0]) importJson(e.target.files[0]); });
+      $('resetBtn').addEventListener('click', resetBoard);
+      document.addEventListener('keydown', e => {
+        if (e.key === 'Escape' && !$('modal').classList.contains('hidden')) closeModal();
+        if ((e.key === 'n' || e.key === 'N') && $('modal').classList.contains('hidden') &&
+            document.activeElement.tagName !== 'INPUT' && document.activeElement.tagName !== 'TEXTAREA') {
+          e.preventDefault(); openModal(null);
+        }
+      });
+    }
+
+    load();
+    wire();
+    render();
+  </script>
+</body>
+</html>
