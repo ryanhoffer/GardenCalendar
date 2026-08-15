@@ -49,8 +49,8 @@ export default async function handler(req, res) {
       subscription_data: { trial_period_days: TRIAL_DAYS },
       allow_promotion_codes: true,
       client_reference_id: user.id,
-      success_url: `${base}/?checkout=success`,
-      cancel_url: `${base}/?checkout=cancel`,
+      success_url: `${base}/app?checkout=success`,
+      cancel_url: `${base}/app?checkout=cancel`,
     });
 
     return send(res, 200, { url: wsSession.url });
