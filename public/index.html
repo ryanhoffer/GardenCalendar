@@ -5806,12 +5806,25 @@
       // Social / OAuth login. Redirects away and back to the app.
       async function authOAuth(provider) {
         if (!sb) return;
-        authMsg('Redirecting to ' + provider + '…', 'info');
+        const nice = provider.charAt(0).toUpperCase() + provider.slice(1);
+        authMsg('Redirecting to ' + nice + '…', 'info');
         const { error } = await sb.auth.signInWithOAuth({
           provider,
           options: { redirectTo: location.origin },
         });
-        if (error) authMsg(error.message, 'error');
+        if (error) {
+          // Turn Supabase's raw messages into something friendlier.
+          const raw = (error.message || '').toLowerCase();
+          let friendly;
+          if (raw.includes('not enabled') || raw.includes('provider is not enabled') || raw.includes('unsupported provider')) {
+            friendly = nice + ' sign-in isn’t available yet. Please use email, or try another option.';
+          } else if (raw.includes('network') || raw.includes('failed to fetch')) {
+            friendly = 'Network error reaching ' + nice + '. Check your connection and try again.';
+          } else {
+            friendly = 'Couldn’t start ' + nice + ' sign-in. Please try again or use email.';
+          }
+          authMsg(friendly, 'error');
+        }
       }
 
       async function signOut() {
