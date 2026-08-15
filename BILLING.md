@@ -195,13 +195,19 @@ Helper to know if a user has access:
 ## 8. Build order
 
 1. **[P0]** Stripe products + prices ($4.99/mo, $49.99/yr) + trial, in test mode.
-2. **[P0]** `profiles` table + RLS + service-role write path.
-3. **[P0]** `create-checkout-session` + client pricing screen.
-4. **[P0]** `stripe-webhook` → Supabase sync.
-5. **[P0]** Paywall gating in the app + status display.
-6. **[P0]** `create-portal-session` + "Manage subscription" button.
+2. **[done]** `profiles` table + RLS + service-role write path.
+3. **[done]** `create-checkout-session` + client pricing screen.
+4. **[done]** `stripe-webhook` → Supabase sync.
+5. **[done]** Paywall gating in the app + status display.
+6. **[done]** `create-portal-session` + "Manage subscription" button.
 7. **[P1]** Comped accounts + admin hooks (ties into `ADMIN_PANEL.md`).
 8. **[P0]** Full test pass → switch to live keys.
+
+> **Code is wired up (test mode).** Remaining before launch: create the Stripe
+> Product/Prices in the dashboard, set the env vars (`STRIPE_SECRET_KEY`,
+> `STRIPE_WEBHOOK_SECRET`, `STRIPE_PUBLISHABLE_KEY`, `STRIPE_PRICE_MONTHLY`,
+> `STRIPE_PRICE_YEARLY`, `APP_URL`), register the webhook endpoint
+> (`/api/stripe-webhook`), and run the §7 test pass.
 
 ---
 

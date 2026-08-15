@@ -8,10 +8,18 @@ export default function handler(req, res) {
   const supabaseUrl = process.env.SUPABASE_URL || '';
   const supabaseAnonKey = process.env.SUPABASE_ANON_KEY || '';
 
+  // Publishable Stripe values are safe to expose to the browser.
+  const stripePublishableKey = process.env.STRIPE_PUBLISHABLE_KEY || '';
+  const priceMonthly = process.env.STRIPE_PRICE_MONTHLY || '';
+  const priceYearly = process.env.STRIPE_PRICE_YEARLY || '';
+
   // Signal misconfiguration clearly instead of silently shipping empties.
   res.status(200).json({
     supabaseUrl,
     supabaseAnonKey,
     configured: Boolean(supabaseUrl && supabaseAnonKey),
+    stripePublishableKey,
+    prices: { monthly: priceMonthly, yearly: priceYearly },
+    billingConfigured: Boolean(stripePublishableKey && priceMonthly && priceYearly),
   });
 }
