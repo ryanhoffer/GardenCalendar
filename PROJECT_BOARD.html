@@ -6,6 +6,7 @@
   <meta name="robots" content="noindex, nofollow" />
   <title>Garden Calendar — Project Board (local only)</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <style>
     body { font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
     .card { cursor: grab; }
@@ -23,20 +24,34 @@
       <div class="w-8 h-8 rounded-lg bg-slate-900 text-white flex items-center justify-center font-bold">✓</div>
       <div>
         <h1 class="font-bold leading-tight">Project Board</h1>
-        <p class="text-[11px] text-slate-500">Garden Calendar · local only (this file never deploys)</p>
+        <p class="text-[11px] text-slate-500">Garden Calendar · synced to Supabase (admin only)</p>
       </div>
       <div class="ml-auto flex items-center gap-2 text-sm">
+        <span id="dataStatus" class="text-[11px] font-semibold px-2 py-1 rounded-full bg-slate-100 text-slate-500">—</span>
         <span id="stats" class="text-xs text-slate-500 mr-1"></span>
-        <button id="addBtn" class="px-3 py-1.5 rounded-lg font-semibold bg-slate-900 text-white hover:bg-slate-800 transition">+ Add task</button>
-        <button id="exportBtn" class="px-3 py-1.5 rounded-lg font-semibold bg-slate-100 text-slate-700 hover:bg-slate-200 transition">Export</button>
-        <button id="importBtn" class="px-3 py-1.5 rounded-lg font-semibold bg-slate-100 text-slate-700 hover:bg-slate-200 transition">Import</button>
-        <button id="resetBtn" class="px-3 py-1.5 rounded-lg font-semibold bg-slate-100 text-slate-600 hover:bg-rose-100 hover:text-rose-700 transition">Reset</button>
+        <button id="addBtn" class="px-3 py-1.5 rounded-lg font-semibold bg-slate-900 text-white hover:bg-slate-800 transition hidden">+ Add task</button>
+        <button id="refreshBtn" class="px-3 py-1.5 rounded-lg font-semibold bg-slate-100 text-slate-700 hover:bg-slate-200 transition hidden">Refresh</button>
+        <button id="signOutBtn" class="px-3 py-1.5 rounded-lg font-semibold bg-slate-100 text-slate-600 hover:bg-rose-100 hover:text-rose-700 transition hidden">Sign out</button>
       </div>
     </div>
   </header>
 
   <main class="max-w-[1400px] mx-auto px-5 py-6">
-    <div id="board" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4"></div>
+    <!-- Sign-in gate (admin only) -->
+    <div id="gate" class="hidden max-w-sm mx-auto mt-10 bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+      <h2 class="font-bold text-lg mb-1">Sign in</h2>
+      <p class="text-xs text-slate-500 mb-4">Admin accounts only. The board is stored in Supabase and synced across your devices.</p>
+      <label class="block text-[11px] font-semibold text-slate-500 mb-1">Email</label>
+      <input id="gEmail" type="email" placeholder="you@example.com"
+        class="w-full mb-2 px-3 py-2 rounded-lg text-sm border border-slate-200 bg-slate-50 outline-none focus:border-slate-400" />
+      <label class="block text-[11px] font-semibold text-slate-500 mb-1">Password</label>
+      <input id="gPassword" type="password" placeholder="••••••••"
+        class="w-full mb-3 px-3 py-2 rounded-lg text-sm border border-slate-200 bg-slate-50 outline-none focus:border-slate-400" />
+      <button id="gSignIn" class="w-full px-4 py-2 rounded-lg text-sm font-semibold bg-slate-900 text-white hover:bg-slate-800 transition">Sign in</button>
+      <p id="gMsg" class="text-xs text-rose-600 mt-2 hidden"></p>
+    </div>
+
+    <div id="board" class="hidden grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4"></div>
   </main>
 
   <!-- Editor modal -->
@@ -78,11 +93,14 @@
     </div>
   </div>
 
-  <!-- Hidden file input for import -->
-  <input id="importFile" type="file" accept="application/json" class="hidden" />
+  <!-- (data is synced to Supabase; no file import needed) -->
 
   <script>
-    const STORAGE_KEY = 'gardenCalendar.projectBoard.v1';
+    // Public Supabase config (anon key is safe to expose; RLS restricts the
+    // project_board table to admins only). Same project as the main app.
+    const SUPABASE_URL = 'https://zclmkmgakwwsofydzbxa.supabase.co';
+    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpjbG1rbWdha3d3c29meWR6YnhhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY2MzA3ODksImV4cCI6MjEwMjIwNjc4OX0.9L6Qw42L8do49fv81Hb-dM4ikf1G460LWe04w_TVz7U';
+    const TABLE = 'project_board';
     const COLUMNS = [
       { id: 'backlog', title: 'Backlog',     accent: 'bg-slate-400' },
       { id: 'todo',    title: 'To do',        accent: 'bg-sky-500' },
@@ -96,83 +114,65 @@
       P3: 'bg-slate-100 text-slate-500',
     };
 
-    // ---- Seed data: the remaining Garden Calendar tasks ----
-    function seed() {
-      const t = (title, column, priority, tag, notes) =>
-        ({ id: uid(), title, column, priority, tag, notes: notes || '', created: Date.now() });
-      return [
-        // Launch blockers
-        t('Rotate Supabase DB password', 'todo', 'P0', 'security',
-          'The database password was exposed in a chat. Reset it in Supabase → Project Settings → Database → Reset database password, then update any local env/SUPABASE_DB_PASSWORD.'),
-        t('Replace Tailwind CDN with a build step', 'todo', 'P0', 'build',
-          'Both index.html and admin.html load cdn.tailwindcss.com, which warns against production use. Add a real Tailwind build (CLI or PostCSS) and ship a compiled CSS file.'),
-        t('Configure production SMTP + re-enable email confirmation', 'backlog', 'P1', 'auth',
-          'Built-in Supabase email sender is rate-limited. Add SMTP (Resend/SendGrid) under Authentication → Emails, then turn email confirmation back on before a serious launch.'),
-        t('Pin CDN versions (Lucide, Supabase JS)', 'backlog', 'P2', 'build',
-          'Replace @latest with pinned versions for reproducible builds and to avoid surprise breakage.'),
-        t('Decide on admin demo mode for launch', 'backlog', 'P2', 'admin',
-          'Keep ?demo=1 mock backend (harmless, behind a flag) or strip it for a smaller admin.html. Currently isolated in a clearly-marked block.'),
-        t('Flip ALLOW_GUEST to false for launch (verify)', 'todo', 'P1', 'auth',
-          'Guest access is gated behind ALLOW_GUEST (default false). Confirm the hard sign-in wall behaves on production; ?guest=1 re-enables for dev.'),
-
-        // Stripe go-live
-        t('Create Stripe Product + Prices ($4.99/mo, $49.99/yr)', 'todo', 'P0', 'billing',
-          'In the Stripe dashboard (test mode first): Product "Garden Calendar Pro" with monthly and yearly prices. Note the price IDs.'),
-        t('Set Stripe env vars in Vercel', 'todo', 'P0', 'billing',
-          'STRIPE_SECRET_KEY, STRIPE_PUBLISHABLE_KEY, STRIPE_PRICE_MONTHLY, STRIPE_PRICE_YEARLY, APP_URL. Then redeploy.'),
-        t('Register Stripe webhook → /api/stripe-webhook', 'todo', 'P0', 'billing',
-          'Add the endpoint in Stripe, copy the signing secret into STRIPE_WEBHOOK_SECRET. Verify events sync to profiles.'),
-        t('Enable Stripe Customer Portal', 'backlog', 'P1', 'billing',
-          'Turn on the Billing Customer Portal so users can manage/cancel. "Manage subscription" button already wired.'),
-        t('Full Stripe test pass (test cards)', 'backlog', 'P1', 'billing',
-          'Run BILLING.md §7: successful subscribe, failed payment, 3DS, trial→active, cancel, comped. Then switch to live keys.'),
-
-        // Auth / providers
-        t('Set Supabase Site URL + Redirect URLs', 'todo', 'P1', 'auth',
-          'Authentication → URL Configuration: Site URL = production URL; Redirect URLs include production + http://localhost:5500.'),
-        t('(Optional) Wire up Google OAuth', 'backlog', 'P3', 'auth',
-          'GitHub is live. Google needs a Cloud OAuth client + enabling the provider in Supabase. Buttons + error handling already built.'),
-
-        // Admin polish
-        t('Admin: apply discount code from user drawer', 'backlog', 'P3', 'admin',
-          'Optional enhancement — apply a discount code to a customer directly from the detail drawer.'),
-        t('Admin: audit-log history view', 'backlog', 'P3', 'admin',
-          'Surface admin_audit_log (who did what) in the panel, e.g. per-user in the drawer.'),
-
-        // Done (recently shipped this session)
-        t('Global command-palette search (⌘K)', 'done', 'P2', 'ui'),
-        t('Reimagined auth: email/password + social + forgot password', 'done', 'P1', 'auth'),
-        t('Stripe billing code: checkout, portal, webhook, paywall UI', 'done', 'P0', 'billing'),
-        t('Admin panel scaffold + demo mode', 'done', 'P1', 'admin'),
-        t('Admin: sortable columns', 'done', 'P2', 'admin'),
-        t('Admin: search users as you type', 'done', 'P2', 'admin'),
-        t('Admin: user detail drawer with subscription actions', 'done', 'P1', 'admin'),
-        t('Apply Supabase migrations + make admin + verify DB', 'done', 'P0', 'infra'),
-        t('Enable GitHub OAuth (verified live)', 'done', 'P1', 'auth'),
-        t('Gate guest access behind ALLOW_GUEST flag', 'done', 'P1', 'auth'),
-        t('Fix weather latitude=null 400 on ZIP change + invalid ZIP feedback', 'done', 'P1', 'bug'),
-      ];
-    }
-
     // ---- State ----
-    let cards = [];
+    let sb = null;          // Supabase client
+    let session = null;     // auth session
+    let cards = [];         // { id, title, notes, priority, tag, column, position }
     let editingId = null;
 
     function uid() { return 'c' + Math.random().toString(36).slice(2, 9); }
     function $(id) { return document.getElementById(id); }
     function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c])); }
 
-    function load() {
-      try {
-        const raw = localStorage.getItem(STORAGE_KEY);
-        if (raw) { cards = JSON.parse(raw); return; }
-      } catch (e) {}
-      cards = seed();
-      save();
+    // Map a DB row (column_id) to the in-memory card shape (column).
+    function fromRow(r) {
+      return { id: r.id, title: r.title, notes: r.notes || '', priority: r.priority || 'P2',
+               tag: r.tag || '', column: r.column_id || 'todo', position: r.position || 0 };
     }
-    function save() {
-      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(cards)); } catch (e) {}
-      renderStats();
+    // Map a card to a DB row for upsert.
+    function toRow(c) {
+      return { id: c.id, title: c.title, notes: c.notes || '', priority: c.priority || 'P2',
+               tag: c.tag || '', column_id: c.column || 'todo', position: c.position || 0 };
+    }
+
+    function setStatus(text, tone) {
+      const el = $('dataStatus');
+      if (!el) return;
+      const tones = {
+        ok: 'bg-emerald-100 text-emerald-700', busy: 'bg-sky-100 text-sky-700',
+        err: 'bg-rose-100 text-rose-700', idle: 'bg-slate-100 text-slate-500',
+      };
+      el.textContent = text;
+      el.className = 'text-[11px] font-semibold px-2 py-1 rounded-full ' + (tones[tone] || tones.idle);
+    }
+
+    // ---- Data (Supabase) ----
+    async function loadCards() {
+      setStatus('Loading…', 'busy');
+      const { data, error } = await sb.from(TABLE).select('*')
+        .order('column_id', { ascending: true })
+        .order('position', { ascending: true });
+      if (error) { setStatus('Load error', 'err'); console.warn(error); return; }
+      cards = (data || []).map(fromRow);
+      setStatus('✓ Synced', 'ok');
+      render();
+    }
+
+    // Upsert one card. Optimistic: caller has already mutated `cards`.
+    async function upsertCard(c) {
+      setStatus('Saving…', 'busy');
+      const { error } = await sb.from(TABLE).upsert(toRow(c));
+      if (error) { setStatus('Save error', 'err'); console.warn(error); return false; }
+      setStatus('✓ Synced', 'ok');
+      return true;
+    }
+
+    async function deleteRow(id) {
+      setStatus('Saving…', 'busy');
+      const { error } = await sb.from(TABLE).delete().eq('id', id);
+      if (error) { setStatus('Delete error', 'err'); console.warn(error); return false; }
+      setStatus('✓ Synced', 'ok');
+      return true;
     }
 
     // ---- Render ----
@@ -243,10 +243,12 @@
           const card = cards.find(c => c.id === id);
           if (!card) return;
           card.column = drop.dataset.col;
-          // Reorder: move to end of the target column's slice.
+          // Position at the end of the target column.
+          const inCol = cards.filter(c => c.column === card.column && c.id !== id);
+          card.position = inCol.length ? Math.max(...inCol.map(c => c.position || 0)) + 1 : 0;
           cards = cards.filter(c => c.id !== id).concat(card);
-          save();
           render();
+          upsertCard(card);
         });
       });
       document.querySelectorAll('.edit-btn').forEach(b =>
@@ -273,7 +275,7 @@
       setTimeout(() => $('fTitle').focus(), 20);
     }
     function closeModal() { $('modal').classList.add('hidden'); editingId = null; }
-    function saveModal() {
+    async function saveModal() {
       const title = $('fTitle').value.trim();
       if (!title) { $('fTitle').focus(); return; }
       const data = {
@@ -283,50 +285,51 @@
         tag: $('fTag').value.trim(),
         column: $('fColumn').value,
       };
+      let card;
       if (editingId) {
-        const c = cards.find(x => x.id === editingId);
-        if (c) Object.assign(c, data);
+        card = cards.find(x => x.id === editingId);
+        if (card) Object.assign(card, data);
       } else {
-        cards.push(Object.assign({ id: uid(), created: Date.now() }, data));
+        const inCol = cards.filter(c => c.column === data.column);
+        card = Object.assign({ id: uid(), position: inCol.length }, data);
+        cards.push(card);
       }
-      save();
       render();
       closeModal();
+      if (card) await upsertCard(card);
     }
-    function deleteCard() {
+    async function deleteCard() {
       if (!editingId) return;
       if (!confirm('Delete this task?')) return;
-      cards = cards.filter(c => c.id !== editingId);
-      save();
+      const id = editingId;
+      cards = cards.filter(c => c.id !== id);
       render();
       closeModal();
+      await deleteRow(id);
     }
 
-    // ---- Export / import / reset ----
-    function exportJson() {
-      const blob = new Blob([JSON.stringify(cards, null, 2)], { type: 'application/json' });
-      const a = document.createElement('a');
-      a.href = URL.createObjectURL(blob);
-      a.download = 'garden-calendar-board.json';
-      a.click();
-      URL.revokeObjectURL(a.href);
+    // ---- Save to file / import / reload ----
+    // ---- Auth ----
+    function showGate(on) {
+      $('gate').classList.toggle('hidden', !on);
+      $('board').classList.toggle('hidden', on);
+      ['addBtn', 'refreshBtn', 'signOutBtn'].forEach(id => $(id).classList.toggle('hidden', on));
     }
-    function importJson(file) {
-      const reader = new FileReader();
-      reader.onload = () => {
-        try {
-          const data = JSON.parse(reader.result);
-          if (Array.isArray(data)) { cards = data; save(); render(); }
-          else alert('That file doesn’t look like a board export.');
-        } catch (e) { alert('Could not read that file.'); }
-      };
-      reader.readAsText(file);
+    async function signIn() {
+      const email = $('gEmail').value.trim();
+      const password = $('gPassword').value;
+      const msg = $('gMsg'); msg.classList.add('hidden');
+      const { error } = await sb.auth.signInWithPassword({ email, password });
+      if (error) { msg.textContent = error.message; msg.classList.remove('hidden'); return; }
+      await enter();
     }
-    function resetBoard() {
-      if (!confirm('Reset the board to the seeded task list? This clears your changes.')) return;
-      cards = seed();
-      save();
-      render();
+    async function enter() {
+      const { data: { session: s } } = await sb.auth.getSession();
+      session = s;
+      if (!session) { showGate(true); return; }
+      // Verify admin by attempting a read; RLS blocks non-admins (returns []).
+      showGate(false);
+      await loadCards();
     }
 
     // ---- Wire ----
@@ -337,10 +340,10 @@
       $('fCancel').addEventListener('click', closeModal);
       $('fDelete').addEventListener('click', deleteCard);
       $('modalOverlay').addEventListener('click', closeModal);
-      $('exportBtn').addEventListener('click', exportJson);
-      $('importBtn').addEventListener('click', () => $('importFile').click());
-      $('importFile').addEventListener('change', e => { if (e.target.files[0]) importJson(e.target.files[0]); });
-      $('resetBtn').addEventListener('click', resetBoard);
+      $('refreshBtn').addEventListener('click', loadCards);
+      $('gSignIn').addEventListener('click', signIn);
+      $('gPassword').addEventListener('keydown', e => { if (e.key === 'Enter') signIn(); });
+      $('signOutBtn').addEventListener('click', async () => { await sb.auth.signOut(); location.reload(); });
       document.addEventListener('keydown', e => {
         if (e.key === 'Escape' && !$('modal').classList.contains('hidden')) closeModal();
         if ((e.key === 'n' || e.key === 'N') && $('modal').classList.contains('hidden') &&
@@ -350,9 +353,12 @@
       });
     }
 
-    load();
-    wire();
-    render();
+    (async function init() {
+      wire();
+      sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+      await enter();
+    })();
   </script>
 </body>
 </html>
+
