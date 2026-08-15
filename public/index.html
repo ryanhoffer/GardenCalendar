@@ -826,10 +826,11 @@
       plant:   { label: 'Plants',                  icon: 'carrot',         color: '#059669', test: k => k.startsWith('veg:') },
       variety: { label: 'Plantings',               icon: 'git-branch',     color: '#0d9488', test: k => k.startsWith('planting:') },
       day:     { label: 'Days',                    icon: 'calendar-days',  color: '#0ea5e9', test: k => k.startsWith('day:') },
+      week:    { label: 'Weeks',                   icon: 'calendar-range', color: '#6366f1', test: k => k.startsWith('week:') },
       month:   { label: 'Months',                  icon: 'calendar-range', color: '#8b5cf6', test: k => k.startsWith('month:') },
       year:    { label: 'Years',                   icon: 'calendar',       color: '#d97706', test: k => k.startsWith('year:') },
       location:{ label: 'Locations',               icon: 'map-pin',        color: '#16a34a', test: k => k.startsWith('location:') },
-      other:   { label: 'Other',                   icon: 'sticky-note',    color: '#64748b', test: k => !/^(veg|planting|day|month|year|location):/.test(k) },
+      other:   { label: 'Other',                   icon: 'sticky-note',    color: '#64748b', test: k => !/^(veg|planting|day|week|month|year|location):/.test(k) },
       task:    { label: 'Task notes',              icon: 'clipboard-list', color: '#ea580c', test: () => false },
     };
     // Which NOTE_TYPES a note key belongs to.
@@ -2242,9 +2243,9 @@
       const dateNav = document.getElementById('dateNav');
       dateNav.classList.toggle('hidden', state.view === 'list' || state.view === 'notes');
 
-      // Period note button: attaches to the current month or year.
+      // Period note button: attaches to the current week, month or year.
       const btn = document.getElementById('periodNoteBtn');
-      if (state.view === 'list' || state.view === 'notes' || state.view === 'day' || state.view === 'week') {
+      if (state.view === 'list' || state.view === 'notes' || state.view === 'day') {
         btn.classList.add('hidden');
       } else {
         btn.classList.remove('hidden');
@@ -2253,13 +2254,14 @@
         btn.dataset.note = key || '';
         btn.className = 'w-8 h-8 rounded-lg flex items-center justify-center transition ' +
           (active ? 'text-amber-500 bg-amber-50 hover:bg-amber-100' : 'text-slate-400 hover:bg-slate-100 hover:text-slate-600');
-        btn.title = state.view === 'year' ? 'Note for this year' : 'Note for this month';
+        btn.title = state.view === 'year' ? 'Note for this year' : (state.view === 'week' ? 'Note for this week' : 'Note for this month');
       }
     }
 
-    // The note key for the currently viewed period (month or year).
+    // The note key for the currently viewed period (week, month or year).
     function periodNoteKey() {
       const d = parseISO(state.cursor);
+      if (state.view === 'week') return 'week:' + weekStartISO(state.cursor);
       if (state.view === 'month') return 'month:' + d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0');
       if (state.view === 'year') return 'year:' + d.getFullYear();
       return null;
@@ -2269,6 +2271,7 @@
       if (key.startsWith('veg:')) { const v = vegById(+key.slice(4)); return 'Plant · ' + (v ? v.name : ''); }
       if (key.startsWith('planting:')) { const p = plantingById(+key.slice(9)); return 'Planting · ' + (p ? p.name : ''); }
       if (key.startsWith('day:')) { const d = parseISO(key.slice(4)); return DOW[d.getDay()] + ', ' + MONTHS[d.getMonth()] + ' ' + d.getDate() + ', ' + d.getFullYear(); }
+      if (key.startsWith('week:')) { const ws = parseISO(key.slice(5)), we = parseISO(weekEndISO(key.slice(5))); const sameYear = ws.getFullYear() === we.getFullYear(); return 'Week of ' + MONTHS_SHORT[ws.getMonth()] + ' ' + ws.getDate() + (sameYear ? '' : ', ' + ws.getFullYear()) + ' – ' + (ws.getMonth() === we.getMonth() ? '' : MONTHS_SHORT[we.getMonth()] + ' ') + we.getDate() + ', ' + we.getFullYear(); }
       if (key.startsWith('month:')) { const [y,m] = key.slice(6).split('-').map(Number); return MONTHS[m-1] + ' ' + y; }
       if (key.startsWith('year:')) return 'Year ' + key.slice(5);
       if (key.startsWith('location:')) return 'Location · ' + key.slice(9);
@@ -2572,7 +2575,26 @@
       }
 
       document.getElementById('weekView').innerHTML =
+        weekNoteBanner(start) +
         '<div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2">' + cols + '</div>';
+    }
+
+    // A banner above the week grid showing this week's note (if any) with a
+    // quick add/edit button. Mirrors the header period-note button.
+    function weekNoteBanner(start) {
+      const key = 'week:' + start;
+      const text = noteLogText(key);
+      if (text) {
+        return '<div class="mb-2 flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50/70 px-3 py-2">' +
+            '<i data-lucide="sticky-note" class="w-4 h-4 text-amber-500 shrink-0 mt-0.5"></i>' +
+            '<button data-note="' + escapeHtml(key) + '" class="min-w-0 flex-1 text-left text-xs text-slate-600 hover:text-slate-800 transition line-clamp-2" title="Edit week note">' + escapeHtml(text) + '</button>' +
+          '</div>';
+      }
+      return '<div class="mb-2">' +
+          '<button data-note="' + escapeHtml(key) + '" class="inline-flex items-center gap-1.5 rounded-lg border border-dashed border-slate-200 px-2.5 py-1 text-[11px] font-semibold text-slate-400 hover:text-accent-600 hover:border-accent-300 transition" title="Add a note for this week">' +
+            '<i data-lucide="sticky-note" class="w-3.5 h-3.5"></i> Add week note' +
+          '</button>' +
+        '</div>';
     }
 
     // Single-day agenda: weather, frost markers, and the day's tasks.
@@ -5714,7 +5736,10 @@
         const gate = $('authGate');
         if (!gate) return;
         gate.classList.remove('hidden');
-        authSetMode('login');
+        // Honor ?signup=1 (e.g. from the landing page) by opening on Sign up.
+        let startMode = 'login';
+        try { if (new URLSearchParams(location.search).get('signup') === '1') startMode = 'signup'; } catch (_) {}
+        authSetMode(startMode);
         authMsg('', null);
         if (window.lucide) lucide.createIcons();
         setTimeout(() => { const el = $('authGateEmail'); if (el) el.focus(); }, 30);
