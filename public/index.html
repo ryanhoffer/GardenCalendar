@@ -412,6 +412,7 @@
             <input id="zipInput" type="text" inputmode="numeric" maxlength="5" placeholder="e.g. 80202"
               class="flex-1 min-w-0 px-3 py-1.5 rounded-lg text-sm border border-slate-200 bg-slate-50 outline-none focus:border-accent-500 focus:ring-1 focus:ring-accent-500" />
           </div>
+          <p id="zipHint" class="text-[10px] text-rose-500 -mt-2 mb-3 leading-snug hidden"></p>
 
           <label class="block text-[11px] font-semibold text-slate-500 mb-1">Hardiness zone</label>
           <select id="zoneSelect" class="w-full px-3 py-1.5 rounded-lg text-sm border border-slate-200 bg-slate-50 outline-none focus:border-accent-500 focus:ring-1 focus:ring-accent-500 mb-1">
@@ -1058,14 +1059,19 @@
     function weekEndISO(iso) { return addDaysISO(weekStartISO(iso), 6); }
 
     // Resolve a US ZIP to lat/lon via the free zippopotam.us service.
+    // Returns { lat, lon } for valid ZIPs, or null for unknown/invalid ones
+    // (zippopotam returns 404 for ZIPs that don't exist).
     async function geocodeZip(zip) {
+      if (!/^\d{5}$/.test(String(zip))) return null;
       try {
         const r = await fetch('https://api.zippopotam.us/us/' + zip);
-        if (!r.ok) return null;
+        if (!r.ok) return null; // 404 → ZIP doesn't exist
         const j = await r.json();
         const p = j.places && j.places[0];
         if (!p) return null;
-        return { lat: +p.latitude, lon: +p.longitude };
+        const lat = +p.latitude, lon = +p.longitude;
+        if (!isFinite(lat) || !isFinite(lon)) return null;
+        return { lat, lon };
       } catch (e) { return null; }
     }
 
@@ -1106,6 +1112,10 @@
     // Fetch a date range from an Open-Meteo endpoint into the store.
     async function fetchWeatherRange(baseUrl, start, end) {
       const loc = state.location;
+      // Guard: coordinates may have been cleared (e.g. the user started typing
+      // a new ZIP) after this sync began. Never call the API with null coords.
+      if (!loc || loc.lat == null || loc.lon == null ||
+          !isFinite(loc.lat) || !isFinite(loc.lon)) return;
       const url = baseUrl + '?latitude=' + loc.lat + '&longitude=' + loc.lon +
         '&start_date=' + start + '&end_date=' + end +
         '&daily=weather_code,temperature_2m_max,temperature_2m_min' +
@@ -1160,7 +1170,8 @@
     // date checks out.
     async function syncWeatherIfNeeded() {
       const loc = state.location || {};
-      if (!loc.lat || !loc.lon || weatherSyncing) return;
+      if (loc.lat == null || loc.lon == null ||
+          !isFinite(loc.lat) || !isFinite(loc.lon) || weatherSyncing) return;
       const localToday = isoToday();
       // Already synced today → show only what we've stored, no API calls.
       if (weatherLastSync && weatherLastSync >= localToday) return;
@@ -4256,6 +4267,8 @@
       const zip = e.target.value.replace(/\D/g, '').slice(0, 5);
       e.target.value = zip;
       state.location.zip = zip;
+      const hint = document.getElementById('zipHint');
+      if (hint) { hint.classList.add('hidden'); hint.textContent = ''; }
       if (zip.length >= 3) {
         const z = zoneFromZip(zip);
         if (z) state.location.zone = z;
@@ -4266,7 +4279,14 @@
         state.location.lat = null; state.location.lon = null;
         resetWeatherStore();
         geocodeZip(zip).then(coords => {
-          if (!coords || state.location.zip !== zip) return;
+          // Ignore if the user has since changed the ZIP.
+          if (state.location.zip !== zip) return;
+          if (!coords) {
+            // ZIP doesn't exist / couldn't be resolved — tell the user, keep
+            // coords null so no weather request is attempted.
+            if (hint) { hint.textContent = 'Couldn’t find that ZIP code. Check it and try again.'; hint.classList.remove('hidden'); }
+            return;
+          }
           state.location.lat = coords.lat;
           state.location.lon = coords.lon;
           scheduleSave();
