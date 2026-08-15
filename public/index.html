@@ -5467,6 +5467,21 @@
   <script>
     (function () {
       const TABLE = 'garden_state';
+
+      // ---- Guest access toggle ----------------------------------------------
+      // When true, users may dismiss the sign-in gate and use the app locally
+      // ("Continue without an account"). This is a DEVELOPMENT convenience.
+      // For LAUNCH set this to false to enforce a hard sign-in wall (no
+      // on-device-only usage). Can be temporarily re-enabled with ?guest=1.
+      const ALLOW_GUEST = (() => {
+        try {
+          const p = new URLSearchParams(location.search);
+          if (p.get('guest') === '1') return true;
+          if (p.get('guest') === '0') return false;
+        } catch (_e) {}
+        return false; // ← launch default: sign-in required
+      })();
+
       let sb = null;              // Supabase client (once configured)
       let session = null;         // current auth session, or null
       let cloudSaveTimer = null;  // debounce cloud upserts
@@ -5709,7 +5724,7 @@
         const social = $('authSocial'); if (social) social.classList.toggle('hidden', recovery);
         const divider = $('authDivider'); if (divider) divider.classList.toggle('hidden', recovery);
         const emailField = $('authEmailField'); if (emailField) emailField.classList.toggle('hidden', recovery);
-        const skip = $('authSkipWrap'); if (skip) skip.classList.toggle('hidden', recovery);
+        const skip = $('authSkipWrap'); if (skip) skip.classList.toggle('hidden', recovery || !ALLOW_GUEST);
 
         $('authSubmitLabel').textContent =
           recovery ? 'Set new password' : mode === 'signup' ? 'Create account' : 'Log in';
@@ -5867,7 +5882,7 @@
           b.addEventListener('click', () => authOAuth(b.dataset.oauth)));
         $('authForm').addEventListener('submit', authSubmit);
         $('authForgot').addEventListener('click', authForgotPassword);
-        $('authSkip').addEventListener('click', authGateHide);
+        $('authSkip').addEventListener('click', () => { if (ALLOW_GUEST) authGateHide(); });
         $('authTogglePw').addEventListener('click', () => {
           const pw = $('authGatePassword');
           const icon = $('authTogglePw').querySelector('i');
@@ -5876,7 +5891,8 @@
           if (icon) { icon.setAttribute('data-lucide', show ? 'eye-off' : 'eye'); if (window.lucide) lucide.createIcons(); }
         });
         document.addEventListener('keydown', (e) => {
-          if (e.key === 'Escape' && !$('authGate').classList.contains('hidden')) authGateHide();
+          // Escape only dismisses the gate when guest access is allowed.
+          if (ALLOW_GUEST && e.key === 'Escape' && !$('authGate').classList.contains('hidden')) authGateHide();
         });
 
         const { data: { session: initial } } = await sb.auth.getSession();
@@ -5911,6 +5927,8 @@
             profile = null;
             renderBilling();
             showSignedOut();
+            // No guest access → force the gate back up after sign-out.
+            if (!ALLOW_GUEST) authGateShow();
           }
         });
       }
