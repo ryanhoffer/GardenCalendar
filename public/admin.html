@@ -92,7 +92,6 @@
               <option value="canceled">Canceled</option>
               <option value="inactive">Inactive</option>
             </select>
-            <button id="userSearchBtn" class="px-3 py-2 rounded-lg text-sm font-semibold bg-slate-900 text-white hover:bg-slate-800 transition">Search</button>
           </div>
           <div class="overflow-x-auto">
             <table class="w-full text-sm">
@@ -263,8 +262,11 @@
       document.querySelectorAll('.tab').forEach(t =>
         t.addEventListener('click', () => setTab(t.dataset.tab)));
 
-      $('userSearchBtn').addEventListener('click', () => { userOffset = 0; loadUsers(); });
-      $('userSearch').addEventListener('keydown', e => { if (e.key === 'Enter') { userOffset = 0; loadUsers(); } });
+      let searchTimer;
+      $('userSearch').addEventListener('input', () => {
+        clearTimeout(searchTimer);
+        searchTimer = setTimeout(() => { userOffset = 0; loadUsers(); }, 250);
+      });
       $('statusFilter').addEventListener('change', () => { userOffset = 0; loadUsers(); });
       $('prevPage').addEventListener('click', () => { userOffset = Math.max(0, userOffset - userLimit); loadUsers(); });
       $('nextPage').addEventListener('click', () => { userOffset += userLimit; loadUsers(); });
