@@ -202,6 +202,65 @@
     </main>
   </div>
 
+  <!-- ============ USER DETAIL DRAWER ============ -->
+  <div id="drawer" class="hidden fixed inset-0 z-30">
+    <div id="drawerOverlay" class="absolute inset-0 bg-slate-900/40"></div>
+    <aside class="absolute right-0 top-0 h-full w-full max-w-md bg-white shadow-2xl border-l border-slate-200 flex flex-col">
+      <!-- Header -->
+      <div class="p-4 border-b border-slate-200 flex items-start gap-3">
+        <div class="w-9 h-9 rounded-full bg-slate-900 text-white flex items-center justify-center shrink-0">
+          <i data-lucide="user" class="w-4 h-4"></i>
+        </div>
+        <div class="min-w-0 flex-1">
+          <p id="dEmail" class="font-bold text-slate-900 truncate">—</p>
+          <p id="dSub" class="text-xs text-slate-500 truncate">—</p>
+        </div>
+        <button id="drawerClose" class="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition shrink-0">
+          <i data-lucide="x" class="w-4 h-4"></i>
+        </button>
+      </div>
+
+      <!-- Body -->
+      <div class="flex-1 overflow-y-auto p-4 space-y-5">
+        <!-- Status chips -->
+        <div class="flex flex-wrap items-center gap-2">
+          <span id="dPlanBadge" class="text-[11px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-500">—</span>
+          <span id="dStatusBadge"></span>
+          <span id="dCompBadge" class="hidden text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700">Comped</span>
+        </div>
+
+        <!-- Details -->
+        <dl class="text-sm divide-y divide-slate-100 border border-slate-200 rounded-xl overflow-hidden">
+          <div class="flex justify-between gap-3 px-3 py-2"><dt class="text-slate-500">User ID</dt><dd id="dUserId" class="font-mono text-xs text-slate-700 truncate max-w-[55%]">—</dd></div>
+          <div class="flex justify-between gap-3 px-3 py-2"><dt class="text-slate-500">Plan</dt><dd id="dPlan" class="text-slate-700">—</dd></div>
+          <div class="flex justify-between gap-3 px-3 py-2"><dt class="text-slate-500">Status</dt><dd id="dStatus" class="text-slate-700">—</dd></div>
+          <div class="flex justify-between gap-3 px-3 py-2"><dt class="text-slate-500">Renews / ends</dt><dd id="dRenews" class="text-slate-700">—</dd></div>
+          <div class="flex justify-between gap-3 px-3 py-2"><dt class="text-slate-500">Cancels at period end</dt><dd id="dCancel" class="text-slate-700">—</dd></div>
+          <div class="flex justify-between gap-3 px-3 py-2"><dt class="text-slate-500">Comp reason</dt><dd id="dReason" class="text-slate-700 truncate max-w-[55%]">—</dd></div>
+          <div class="flex justify-between gap-3 px-3 py-2"><dt class="text-slate-500">Joined</dt><dd id="dJoined" class="text-slate-700">—</dd></div>
+          <div class="flex justify-between gap-3 px-3 py-2"><dt class="text-slate-500">Stripe customer</dt><dd id="dCustomer" class="text-slate-700 truncate max-w-[55%]">—</dd></div>
+        </dl>
+
+        <!-- Subscription actions -->
+        <div>
+          <h4 class="text-[11px] font-bold uppercase tracking-wide text-slate-400 mb-2">Subscription actions</h4>
+          <div class="space-y-2">
+            <div id="dGrantWrap">
+              <label class="block text-[11px] font-semibold text-slate-500 mb-1">Comp reason</label>
+              <input id="dReasonInput" type="text" placeholder="Beta tester" class="w-full mb-2 px-3 py-2 rounded-lg text-sm border border-slate-200 bg-slate-50 outline-none focus:border-slate-400" />
+              <button id="dGrantBtn" class="w-full px-4 py-2 rounded-lg text-sm font-semibold bg-emerald-600 text-white hover:bg-emerald-700 transition">Grant complimentary Pro</button>
+            </div>
+            <button id="dRevokeBtn" class="w-full px-4 py-2 rounded-lg text-sm font-semibold bg-slate-100 text-slate-700 hover:bg-rose-100 hover:text-rose-700 transition">Revoke access</button>
+            <a id="dStripeLink" href="#" target="_blank" rel="noopener" class="hidden w-full px-4 py-2 rounded-lg text-sm font-semibold bg-slate-100 text-slate-700 hover:bg-slate-200 transition flex items-center justify-center gap-1.5">
+              <i data-lucide="external-link" class="w-3.5 h-3.5"></i> Open in Stripe
+            </a>
+          </div>
+          <p id="dMsg" class="text-xs mt-2 hidden"></p>
+        </div>
+      </div>
+    </aside>
+  </div>
+
   <script>
     // ---- Supabase client (public config from /api/config) ----
     let sb = null, session = null, token = null;
@@ -274,6 +333,19 @@
       $('codeCreateBtn').addEventListener('click', createCode);
       $('grantBtn').addEventListener('click', () => provision('grant'));
       $('revokeBtn').addEventListener('click', () => provision('revoke'));
+
+      // User rows open the detail drawer.
+      $('userRows').addEventListener('click', e => {
+        const tr = e.target.closest('tr[data-uid]');
+        if (tr) openDrawer(tr.dataset.uid);
+      });
+      $('drawerClose').addEventListener('click', closeDrawer);
+      $('drawerOverlay').addEventListener('click', closeDrawer);
+      $('dGrantBtn').addEventListener('click', () => drawerAction('grant'));
+      $('dRevokeBtn').addEventListener('click', () => drawerAction('revoke'));
+      document.addEventListener('keydown', e => {
+        if (e.key === 'Escape' && !$('drawer').classList.contains('hidden')) closeDrawer();
+      });
 
       // Sortable table headers.
       wireSortHeader('userHead',
@@ -366,6 +438,7 @@
     // ---- Users ----
     let userOffset = 0, userLimit = 50, userTotal = 0;
     let userSort = 'created_at', userDir = 'desc';
+    let usersCache = [];
     async function loadUsers() {
       const params = new URLSearchParams();
       const q = $('userSearch').value.trim(); if (q) params.set('q', q);
@@ -374,6 +447,7 @@
       params.set('sort', userSort); params.set('dir', userDir);
       const data = await api('/api/admin/users?' + params.toString());
       const rows = (data && data.users) || [];
+      usersCache = rows;
       userTotal = (data && data.total) || 0;
       $('userRows').innerHTML = rows.length ? rows.map(userRow).join('')
         : '<tr><td colspan="6" class="px-4 py-8 text-center text-slate-400">No users found.</td></tr>';
@@ -387,7 +461,7 @@
     function userRow(u) {
       const badge = statusBadge(u.status);
       const comped = u.comp_reason ? '<span class="text-emerald-600" title="' + esc(u.comp_reason) + '">✓</span>' : '';
-      return '<tr class="border-t border-slate-100">' +
+      return '<tr class="border-t border-slate-100 cursor-pointer hover:bg-slate-50" data-uid="' + esc(u.user_id) + '">' +
         '<td class="px-4 py-2.5 font-medium">' + esc(u.email || '—') + '</td>' +
         '<td class="px-4 py-2.5">' + esc(u.plan || 'none') + '</td>' +
         '<td class="px-4 py-2.5">' + badge + '</td>' +
@@ -457,6 +531,80 @@
       const data = await api('/api/admin/grant-access', { method: 'POST', body: { email, action, reason } });
       if (!data) { msg($('compMsg'), 'Failed (user not found or error).', 'error'); return; }
       msg($('compMsg'), (action === 'grant' ? 'Granted' : 'Revoked') + ' access for ' + email + '.', 'ok');
+      loadUsers();
+      const m = await api('/api/admin/metrics'); if (m) renderMetrics(m);
+    }
+
+    // ---- User detail drawer ----
+    let drawerUser = null;
+    function openDrawer(uid) {
+      const u = usersCache.find(x => String(x.user_id) === String(uid));
+      if (!u) return;
+      drawerUser = u;
+      renderDrawer();
+      show($('drawer'), true);
+      document.body.classList.add('overflow-hidden');
+      lucide.createIcons();
+    }
+    function closeDrawer() {
+      show($('drawer'), false);
+      document.body.classList.remove('overflow-hidden');
+      drawerUser = null;
+    }
+    function renderDrawer() {
+      const u = drawerUser; if (!u) return;
+      const comped = !!u.comp_reason;
+      const access = comped || u.status === 'active' || u.status === 'trialing';
+
+      $('dEmail').textContent = u.email || '—';
+      $('dSub').textContent = comped ? 'Complimentary Pro access'
+        : (access ? 'Pro subscriber' : 'Free / inactive');
+
+      const planLabels = { pro: 'Pro', none: 'Free' };
+      const pb = $('dPlanBadge');
+      pb.textContent = planLabels[u.plan] || (u.plan || 'Free');
+      pb.className = 'text-[11px] font-bold px-2 py-0.5 rounded-full ' +
+        (access ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500');
+      $('dStatusBadge').innerHTML = statusBadge(u.status);
+      show($('dCompBadge'), comped);
+
+      $('dUserId').textContent = u.user_id || '—';
+      $('dPlan').textContent = u.plan || 'none';
+      $('dStatus').textContent = u.status || 'inactive';
+      $('dRenews').textContent = fmtDate(u.current_period_end);
+      $('dCancel').textContent = u.cancel_at_period_end ? 'Yes' : 'No';
+      $('dReason').textContent = u.comp_reason || '—';
+      $('dReason').title = u.comp_reason || '';
+      $('dJoined').textContent = fmtDate(u.created_at);
+      $('dCustomer').textContent = u.stripe_customer_id || '—';
+
+      // Actions: comped users can only be revoked; others can be granted.
+      show($('dGrantWrap'), !comped);
+      show($('dRevokeBtn'), access);
+      $('dReasonInput').value = comped ? (u.comp_reason || '') : '';
+
+      // Stripe deep link (real customer ids only; demo ids start with cus_demo).
+      const link = $('dStripeLink');
+      const cid = u.stripe_customer_id;
+      if (cid && !/^cus_demo/.test(cid)) {
+        link.href = 'https://dashboard.stripe.com/customers/' + encodeURIComponent(cid);
+        show(link, true);
+      } else {
+        show(link, false);
+      }
+      show($('dMsg'), false);
+    }
+    async function drawerAction(action) {
+      const u = drawerUser; if (!u) return;
+      const reason = $('dReasonInput').value.trim();
+      const data = await api('/api/admin/grant-access', {
+        method: 'POST', body: { email: u.email, action, reason },
+      });
+      if (!data) { msg($('dMsg'), 'Action failed (user not found or error).', 'error'); return; }
+      // Reflect the change locally, then refresh table + metrics.
+      Object.assign(u, data.profile || {});
+      renderDrawer();
+      msg($('dMsg'), (action === 'grant' ? 'Granted' : 'Revoked') + ' access.', 'ok');
       loadUsers();
       const m = await api('/api/admin/metrics'); if (m) renderMetrics(m);
     }
