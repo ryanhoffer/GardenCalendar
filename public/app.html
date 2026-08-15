@@ -300,6 +300,10 @@
         <i data-lucide="sparkles" class="w-3.5 h-3.5"></i>
         <span class="hidden sm:inline">Demo</span>
       </button>
+      <button id="exportBtn" class="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-slate-100 text-slate-700 hover:bg-accent-100 hover:text-accent-700 transition flex items-center gap-1.5" title="Export your garden to a Markdown file">
+        <i data-lucide="download" class="w-3.5 h-3.5"></i>
+        <span class="hidden sm:inline">Export</span>
+      </button>
       <button id="resetBtn" class="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-slate-100 text-slate-700 hover:bg-rose-100 hover:text-rose-700 transition flex items-center gap-1.5" title="Remove all data">
         <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
         <span class="hidden sm:inline">Clear</span>
@@ -453,6 +457,9 @@
             <button id="locationFilterBtn" type="button" class="px-3 py-2 rounded-lg text-xs font-semibold border border-slate-200 bg-slate-50 outline-none hover:border-accent-500 transition flex items-center gap-1.5 max-w-[170px]"></button>
             <div id="locationFilterMenu" class="hidden absolute right-0 mt-1 w-56 bg-white rounded-xl border border-slate-200 shadow-lg py-1 z-30 max-h-80 overflow-auto"></div>
           </div>
+          <button id="completedFilterBtn" type="button" class="px-3 py-2 rounded-lg text-xs font-semibold border border-slate-200 bg-slate-50 outline-none hover:border-accent-500 transition flex items-center gap-1.5" title="Show or hide completed tasks">
+            <i data-lucide="check-check" class="w-3.5 h-3.5"></i> <span id="completedFilterLabel">Completed</span>
+          </button>
           <button id="addTaskBtn" class="px-4 py-2 rounded-lg text-xs font-semibold bg-accent-600 text-white hover:bg-accent-700 shadow-sm transition flex items-center gap-1.5">
             <i data-lucide="calendar-plus" class="w-3.5 h-3.5"></i> Add Task
           </button>
@@ -1223,6 +1230,7 @@
       filter: 'all', // 'all' | 'veg:<id>' | 'planting:<id>'
       typeFilter: [], // array of task-type keys to show; empty = show all
       locationFilter: [], // array of location names to show; empty = show all
+      hideCompleted: false, // when true, completed tasks are hidden from calendar views
       taskLocations: [], // shared locations [{ name, icon, color }] across tasks
       noteTypeFilter: [], // array of note-type keys to show in Notes view; empty = show all
       notesCollapsedGroups: [], // note category ids collapsed in Notes view
@@ -1268,7 +1276,7 @@
     function persistState() {
       try {
         localStorage.setItem(STORAGE_KEY, JSON.stringify({
-          veggies: state.veggies, tasks: state.tasks, view: state.view, filter: state.filter, typeFilter: state.typeFilter, locationFilter: state.locationFilter, taskLocations: state.taskLocations, hiddenVegs: state.hiddenVegs, hiddenPlantings: state.hiddenPlantings, notes: state.notes, location: state.location, frostDates: state.frostDates, weather: { data: weatherCache, lastSync: weatherLastSync, version: WEATHER_SYNC_VERSION }, seq
+          veggies: state.veggies, tasks: state.tasks, view: state.view, filter: state.filter, typeFilter: state.typeFilter, locationFilter: state.locationFilter, taskLocations: state.taskLocations, hiddenVegs: state.hiddenVegs, hiddenPlantings: state.hiddenPlantings, hideCompleted: state.hideCompleted, notes: state.notes, location: state.location, frostDates: state.frostDates, weather: { data: weatherCache, lastSync: weatherLastSync, version: WEATHER_SYNC_VERSION }, seq
         }));
       } catch (e) {}
       // Optional cloud-sync hook, installed by the Supabase layer at the end of
@@ -1306,8 +1314,8 @@
           });
         }
         if (typeof s.view === 'string') state.view = s.view;
-        if (typeof s.filter === 'string') state.filter = s.filter;
-        if (Array.isArray(s.typeFilter)) state.typeFilter = Array.from(new Set(s.typeFilter.map(k => k === 'prepare_beds' ? 'custom' : k)));
+        if (typeof s.filter === 'string') state.filter = s.filter;        if (Array.isArray(s.typeFilter)) state.typeFilter = Array.from(new Set(s.typeFilter.map(k => k === 'prepare_beds' ? 'custom' : k)));
+        if (typeof s.hideCompleted === 'boolean') state.hideCompleted = s.hideCompleted;
         if (Array.isArray(s.taskLocations)) {
           // Locations may be saved as plain strings (older data) or as
           // { name, icon, color } objects. Normalize to objects and merge with
@@ -1680,6 +1688,8 @@
     // Apply the active calendar filter to a task list.
     function applyFilter(tasks) {
       let out = tasks;
+      // Completed toggle: optionally hide tasks already marked done.
+      if (state.hideCompleted) out = out.filter(t => !t.done);
       // Task-type filter (multi-select). Empty array = show all types.
       const types = state.typeFilter || [];
       if (types.length) out = out.filter(t => types.includes(t.type));
@@ -1810,6 +1820,7 @@
       renderFilter();
       renderTypeFilter();
       renderLocationFilter();
+      renderCompletedFilter();
       renderTaskSummary();
       renderZone();
       renderPeriodLabel();
@@ -1893,6 +1904,21 @@
         '<div class="px-3 py-1.5 border-b border-slate-100">' +
           '<span class="text-[10px] font-bold uppercase tracking-wide text-slate-400">Filter by plant</span>' +
         '</div>' + rows;
+    }
+
+    // Reflect the completed-filter toggle state on its toolbar button. When
+    // "hide completed" is active the button is highlighted and labeled Hidden.
+    function renderCompletedFilter() {
+      const btn = document.getElementById('completedFilterBtn');
+      if (!btn) return;
+      const label = document.getElementById('completedFilterLabel');
+      const hiding = !!state.hideCompleted;
+      btn.className = 'px-3 py-2 rounded-lg text-xs font-semibold border outline-none transition flex items-center gap-1.5 ' +
+        (hiding
+          ? 'border-accent-500 bg-accent-50 text-accent-700 hover:border-accent-600'
+          : 'border-slate-200 bg-slate-50 hover:border-accent-500');
+      btn.title = hiding ? 'Completed tasks are hidden — click to show' : 'Completed tasks are shown — click to hide';
+      if (label) label.textContent = hiding ? 'Completed hidden' : 'Completed';
     }
 
     // Build the multi-select task-type filter as a dropdown of toggle chips.
@@ -4257,6 +4283,115 @@
       renderAll();
     }
 
+    // ----- Data export (Markdown) -----
+    // Builds a human-readable Markdown document of the user's whole garden:
+    // zone, plants + plantings, all tasks (grouped by date), and every note.
+    function buildMarkdownExport() {
+      const lines = [];
+      const now = new Date();
+      lines.push('# Garden Calendar export');
+      lines.push('');
+      lines.push('_Exported ' + now.toLocaleString() + '_');
+      lines.push('');
+
+      // --- Zone ---
+      const loc = state.location || {};
+      lines.push('## My Zone');
+      lines.push('');
+      lines.push('- **ZIP code:** ' + (loc.zip || '—'));
+      lines.push('- **Hardiness zone:** ' + (loc.zone || '—'));
+      const fd = state.frostDates || {};
+      if (Object.keys(fd).length) {
+        lines.push('- **Frost dates:**');
+        Object.keys(fd).sort().forEach(y => {
+          const f = fd[y] || {};
+          lines.push('  - ' + y + ': last ' + (f.last || '—') + ', first ' + (f.first || '—'));
+        });
+      }
+      lines.push('');
+
+      // --- Plants & plantings ---
+      lines.push('## Plants');
+      lines.push('');
+      if (!state.veggies.length) {
+        lines.push('_No plants yet._');
+        lines.push('');
+      } else {
+        state.veggies.forEach(v => {
+          lines.push('### ' + v.name);
+          const plantings = v.plantings || [];
+          if (plantings.length) {
+            plantings.forEach(p => lines.push('- ' + (p.name || 'Planting')));
+          } else {
+            lines.push('- _No plantings_');
+          }
+          lines.push('');
+        });
+      }
+
+      // --- Tasks (grouped by date) ---
+      lines.push('## Tasks');
+      lines.push('');
+      const tasks = (state.tasks || []).slice().sort((a, b) =>
+        (effectiveDate(a) || '').localeCompare(effectiveDate(b) || ''));
+      if (!tasks.length) {
+        lines.push('_No tasks yet._');
+        lines.push('');
+      } else {
+        let curDate = null;
+        tasks.forEach(t => {
+          const date = effectiveDate(t) || '(no date)';
+          if (date !== curDate) {
+            if (curDate !== null) lines.push('');
+            lines.push('### ' + date);
+            curDate = date;
+          }
+          const tt = TASK_TYPES[t.type] || TASK_TYPES.custom;
+          const check = t.done ? '[x]' : '[ ]';
+          let line = '- ' + check + ' **' + tt.label + '** — ' + taskLabel(t);
+          if (t.location) line += ' _(' + t.location + ')_';
+          lines.push(line);
+          const tn = noteText(t.note || '');
+          if (tn) lines.push('  - ' + tn);
+        });
+        lines.push('');
+      }
+
+      // --- Notes ---
+      lines.push('## Notes');
+      lines.push('');
+      const noteKeys = Object.keys(state.notes || {}).filter(k => hasNote(k));
+      if (!noteKeys.length) {
+        lines.push('_No notes yet._');
+        lines.push('');
+      } else {
+        noteKeys.sort((a, b) => noteTargetLabel(a).localeCompare(noteTargetLabel(b)));
+        noteKeys.forEach(key => {
+          lines.push('### ' + noteTargetLabel(key));
+          sortedNoteLog(key, 'asc').forEach(e => {
+            const txt = noteText(e.html);
+            if (txt) lines.push('- ' + (e.ts ? '_' + noteStamp(e.ts) + ':_ ' : '') + txt);
+          });
+          lines.push('');
+        });
+      }
+
+      return lines.join('\n');
+    }
+
+    function exportData() {
+      const md = buildMarkdownExport();
+      const blob = new Blob([md], { type: 'text/markdown;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'garden-calendar-' + isoToday() + '.md';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    }
+
     const newVeg = document.getElementById('newVeg');
     document.getElementById('addVegBtn').addEventListener('click', () => { openPlantModal(null, newVeg.value); newVeg.value = ''; });
     newVeg.addEventListener('keydown', e => { if (e.key === 'Enter') { openPlantModal(null, newVeg.value); newVeg.value = ''; } });
@@ -4876,6 +5011,11 @@
     document.getElementById('nextBtn').addEventListener('click', () => navigate(1));
     document.getElementById('todayBtn').addEventListener('click', goToday);
     document.getElementById('addTaskBtn').addEventListener('click', () => openTaskModal({}));
+    document.getElementById('completedFilterBtn').addEventListener('click', () => {
+      state.hideCompleted = !state.hideCompleted;
+      scheduleSave();
+      renderAll();
+    });
 
     document.getElementById('monthView').addEventListener('click', e => {
       const noteBtn = e.target.closest('[data-note]');
@@ -5055,6 +5195,7 @@
     });
 
     document.getElementById('resetBtn').addEventListener('click', resetAll);
+    document.getElementById('exportBtn').addEventListener('click', exportData);
     document.getElementById('demoBtn').addEventListener('click', resetDemoData);
 
     // Period (month / year) note button.
