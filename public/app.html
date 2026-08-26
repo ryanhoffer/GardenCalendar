@@ -1571,6 +1571,7 @@
     function addNoteEntry(key, html) {
       const clean = sanitizeNote(html);
       if (!noteHasContent(clean)) return false;
+      if (!planAllows('notes')) return false;
       const arr = noteLog(key);
       arr.push({ id: nextNoteId(), html: clean, ts: Date.now() });
       state.notes[key] = arr;
@@ -3374,9 +3375,37 @@
       ));
     }
 
+    // ----- Freemium free-tier limits -----
+    // Free accounts (and guests) can track a small garden; exceeding a limit
+    // prompts an upgrade. Pro (comped or active/trialing) has no limits.
+    const FREE_LIMITS = { plants: 2, plantings: 2, notes: 5 };
+    function planCount(kind) {
+      if (kind === 'plants') return state.veggies.length;
+      if (kind === 'plantings') return state.veggies.reduce((n, v) => n + ((v.plantings || []).length), 0);
+      if (kind === 'notes') return Object.keys(state.notes || {}).reduce((n, k) => n + ((state.notes[k] || []).length), 0);
+      return 0;
+    }
+    // Returns true if the action is allowed. When blocked, surfaces the upgrade gate.
+    function planAllows(kind) {
+      const api = window.PlanAPI;
+      if (api && api.hasAccess && api.hasAccess()) return true;
+      const limit = FREE_LIMITS[kind];
+      if (limit == null) return true;
+      if (planCount(kind) < limit) return true;
+      // Over the free limit — nudge to upgrade.
+      const nouns = { plants: 'plants', plantings: 'plantings', notes: 'notes' };
+      if (api && api.promptUpgrade) {
+        api.promptUpgrade();
+      } else {
+        alert(`Your free plan is limited to ${limit} ${nouns[kind]}. Upgrade to Premium for unlimited ${nouns[kind]}.`);
+      }
+      return false;
+    }
+
     function addVeg(name) {
       const n = name.trim();
       if (!n) return;
+      if (!planAllows('plants')) return;
       const color = VEG_COLORS[state.veggies.length % VEG_COLORS.length];
       state.veggies.push({ id: seq++, name: n, color, icon: DEFAULT_VEG_ICON, plantings: [] });
       renderAll();
@@ -3395,6 +3424,7 @@
       const v = vegById(vegId);
       if (!v) return;
       if (!v.plantings) v.plantings = [];
+      if (!planAllows('plantings')) return;
       v.plantings.push({ id: seq++, name: n });
       renderAll();
     }
@@ -6273,6 +6303,14 @@
         },
         signOut: () => { if (sb) sb.auth.signOut(); },
         openSignIn: () => { try { authGateShow(); } catch (_e) {} },
+      };
+
+      // Freemium entitlement surface for the main app to gate free-tier limits.
+      window.PlanAPI = {
+        // Pro = comped or an active/trialing subscription that hasn't lapsed.
+        hasAccess: () => billingHasAccess(profile),
+        // Open the pricing/upgrade gate (Stripe checkout).
+        promptUpgrade: () => { try { pricingShow(); } catch (_e) {} },
       };
 
       // Defer until the main app script has run (globals + initial render).
