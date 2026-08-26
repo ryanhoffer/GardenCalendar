@@ -136,12 +136,14 @@
        target. Scoped to the sidebar lists to avoid affecting the calendar.
        ============================================================ */
     @media (hover: none), (max-width: 1023.98px) {
-      /* Reveal rename / delete / note buttons that use opacity-0 + group-hover. */
-      #vegList [class*="opacity-0"],
-      #taskSummary [class*="opacity-0"] { opacity: 1 !important; }
+      /* Reveal rename / delete / note buttons that use opacity-0 + group-hover.
+         Exclude the color-picker <input> that is deliberately kept invisible
+         over each plant icon (a visible one renders as a colored square). */
+      #vegList button[class*="opacity-0"],
+      #taskSummary button[class*="opacity-0"] { opacity: 1 !important; }
 
       /* Bigger, easier-to-hit action buttons in the sidebar lists. */
-      #vegList [data-action],
+      #vegList button[data-action],
       #vegList [data-note],
       #taskSummary [data-note] {
         min-width: 2rem;
