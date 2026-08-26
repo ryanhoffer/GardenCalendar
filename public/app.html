@@ -3378,26 +3378,32 @@
     // ----- Freemium free-tier limits -----
     // Free accounts (and guests) can track a small garden; exceeding a limit
     // prompts an upgrade. Pro (comped or active/trialing) has no limits.
+    // Plantings are limited *per plant* (2 planting types each).
     const FREE_LIMITS = { plants: 2, plantings: 2, notes: 5 };
-    function planCount(kind) {
+    function planCount(kind, ctx) {
       if (kind === 'plants') return state.veggies.length;
-      if (kind === 'plantings') return state.veggies.reduce((n, v) => n + ((v.plantings || []).length), 0);
+      if (kind === 'plantings') return ctx ? (ctx.plantings || []).length : 0;
       if (kind === 'notes') return Object.keys(state.notes || {}).reduce((n, k) => n + ((state.notes[k] || []).length), 0);
       return 0;
     }
     // Returns true if the action is allowed. When blocked, surfaces the upgrade gate.
-    function planAllows(kind) {
+    // For 'plantings', pass the parent veg as `ctx` so the limit is per-plant.
+    function planAllows(kind, ctx) {
       const api = window.PlanAPI;
       if (api && api.hasAccess && api.hasAccess()) return true;
       const limit = FREE_LIMITS[kind];
       if (limit == null) return true;
-      if (planCount(kind) < limit) return true;
+      if (planCount(kind, ctx) < limit) return true;
       // Over the free limit — nudge to upgrade.
-      const nouns = { plants: 'plants', plantings: 'plantings', notes: 'notes' };
+      const msgs = {
+        plants: `Your free plan is limited to ${limit} plants. Upgrade to Premium for unlimited plants.`,
+        plantings: `Your free plan is limited to ${limit} planting types per plant. Upgrade to Premium for unlimited plantings.`,
+        notes: `Your free plan is limited to ${limit} notes. Upgrade to Premium for unlimited notes.`,
+      };
       if (api && api.promptUpgrade) {
         api.promptUpgrade();
       } else {
-        alert(`Your free plan is limited to ${limit} ${nouns[kind]}. Upgrade to Premium for unlimited ${nouns[kind]}.`);
+        alert(msgs[kind]);
       }
       return false;
     }
@@ -3424,7 +3430,7 @@
       const v = vegById(vegId);
       if (!v) return;
       if (!v.plantings) v.plantings = [];
-      if (!planAllows('plantings')) return;
+      if (!planAllows('plantings', v)) return;
       v.plantings.push({ id: seq++, name: n });
       renderAll();
     }
