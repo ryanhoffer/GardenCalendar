@@ -3628,6 +3628,8 @@
     function addDraftVariety(name) {
       const n = (name || '').trim();
       if (!n) return;
+      // Free-tier gate: limit planting types per plant.
+      if (!planAllows('plantings', plantDraft)) return;
       plantDraft.plantings.push({ id: plantTmpSeq--, name: n, color: null });
       renderPlantVarieties();
       renderPlantTasks(); // variety dropdowns need the new option
@@ -3918,6 +3920,8 @@
       // Resolve the crop record (create on first save).
       let veg = plantDraft.id != null ? vegById(plantDraft.id) : null;
       if (!veg) {
+        // Free-tier gate: block creating a brand-new plant over the limit.
+        if (!planAllows('plants')) return;
         veg = { id: seq++, name: plantDraft.name, color: plantDraft.color, icon: plantDraft.icon || DEFAULT_VEG_ICON, plantings: [] };
         state.veggies.push(veg);
       } else {
