@@ -2820,16 +2820,17 @@
       if (obj && obj.planted) parts.push('other ' + obj.planted);
       return parts.join(' · ');
     }
-    // Compact inline editor: one small input per sow method for a crop/variety.
-    function sownInputsMarkup(kind, id, obj) {
-      const attr = kind === 'planting' ? 'data-sown-planting' : 'data-sown-veg';
-      return '<div class="flex items-center gap-1.5 pl-4 mt-1 flex-wrap">' +
-        SOW_METHODS.map(m =>
-          '<label class="text-[10px] font-semibold text-slate-400 flex items-center gap-0.5" title="' + TASK_TYPES[m].label + '">' + SOW_METHOD_SHORT[m] +
-            ' <input ' + attr + '="' + id + '" data-method="' + m + '" type="number" min="0" value="' + (sownMethodCount(obj, m) || '') + '" placeholder="0" class="w-11 px-1 py-0.5 rounded text-xs border border-slate-200 bg-white outline-none focus:border-accent-500" /></label>'
-        ).join('') +
-        (obj && obj.planted ? '<span class="text-[10px] text-slate-400" title="Legacy count with no recorded method">+' + obj.planted + ' other</span>' : '') +
-        '</div>';
+    // Compact inline display: read-only chips are used on the Harvest Tracker.
+    // Read-only chips showing sown counts by method. Used on the (read-only)
+    // Harvest Tracker; the actual data is entered from task areas.
+    function sownChipsMarkup(obj) {
+      const b = sownBuckets(obj);
+      const chips = SOW_METHODS.filter(m => b[m]).map(m =>
+        '<span class="inline-flex items-center gap-0.5 text-[10px] font-semibold text-slate-500 bg-slate-100 rounded px-1.5 py-0.5" title="' + TASK_TYPES[m].label + '">' +
+          '<i data-lucide="' + TASK_TYPES[m].icon + '" class="w-3 h-3" style="color:' + TASK_TYPES[m].color + '"></i>' + SOW_METHOD_SHORT[m] + ' ' + b[m] + '</span>');
+      if (obj && obj.planted) chips.push('<span class="text-[10px] font-semibold text-slate-400 bg-slate-100 rounded px-1.5 py-0.5" title="Legacy count with no recorded method">other ' + obj.planted + '</span>');
+      if (!chips.length) chips.push('<span class="text-[10px] text-slate-300">not sown</span>');
+      return '<div class="flex items-center gap-1 pl-4 mt-1 flex-wrap">' + chips.join('') + '</div>';
     }
 
     function renderHarvest() {
@@ -2850,29 +2851,13 @@
           '</div>' +
         '</div>';
 
-      // Log-a-harvest form.
+      // Read-only notice: data is entered from task areas, not here.
       let form = '';
       if (veggies.length) {
-        const vegOpts = veggies.map(v => '<option value="' + v.id + '">' + escapeHtml(v.name) + '</option>').join('');
-        const unitOpts = HARVEST_UNITS.map(u => '<option value="' + u + '">' + u + '</option>').join('');
         form =
-          '<div class="rounded-xl border border-slate-200 bg-slate-50/70 p-3 mb-4">' +
-            '<div class="text-xs font-bold uppercase tracking-wide text-slate-400 mb-2">Log a harvest</div>' +
-            '<div class="flex flex-wrap items-end gap-2">' +
-              '<div class="min-w-[120px]"><label class="block text-[10px] font-semibold text-slate-500 mb-0.5">Plant</label>' +
-                '<select id="harvestVeg" class="w-full px-2 py-1.5 rounded-lg text-xs border border-slate-200 bg-white outline-none focus:border-accent-500">' + vegOpts + '</select></div>' +
-              '<div class="min-w-[120px]"><label class="block text-[10px] font-semibold text-slate-500 mb-0.5">Variety</label>' +
-                '<select id="harvestPlanting" class="w-full px-2 py-1.5 rounded-lg text-xs border border-slate-200 bg-white outline-none focus:border-accent-500"></select></div>' +
-              '<div class="w-24"><label class="block text-[10px] font-semibold text-slate-500 mb-0.5">Amount</label>' +
-                '<input id="harvestAmount" type="number" min="0" step="0.01" value="1" class="w-full px-2 py-1.5 rounded-lg text-xs border border-slate-200 bg-white outline-none focus:border-accent-500" /></div>' +
-              '<div class="w-24"><label class="block text-[10px] font-semibold text-slate-500 mb-0.5">Unit</label>' +
-                '<select id="harvestUnit" class="w-full px-2 py-1.5 rounded-lg text-xs border border-slate-200 bg-white outline-none focus:border-accent-500">' + unitOpts + '</select></div>' +
-              '<div class="w-36"><label class="block text-[10px] font-semibold text-slate-500 mb-0.5">Date</label>' +
-                '<input id="harvestDate" type="date" value="' + isoToday() + '" class="w-full px-2 py-1.5 rounded-lg text-xs border border-slate-200 bg-white outline-none focus:border-accent-500" /></div>' +
-              '<div class="flex-1 min-w-[120px]"><label class="block text-[10px] font-semibold text-slate-500 mb-0.5">Note (optional)</label>' +
-                '<input id="harvestNote" type="text" maxlength="80" placeholder="e.g. first ripe tomatoes" class="w-full px-2 py-1.5 rounded-lg text-xs border border-slate-200 bg-white outline-none focus:border-accent-500" /></div>' +
-              '<button id="harvestAdd" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-accent-600 text-white hover:bg-accent-700 shadow-sm transition flex items-center gap-1.5"><i data-lucide="plus" class="w-3.5 h-3.5"></i> Log</button>' +
-            '</div>' +
+          '<div class="rounded-xl border border-slate-200 bg-slate-50/70 p-3 mb-4 flex items-start gap-2">' +
+            '<i data-lucide="info" class="w-4 h-4 text-slate-400 shrink-0 mt-0.5"></i>' +
+            '<p class="text-xs text-slate-500">This tracker is read-only. Log harvests and sown counts from a task — open or create a <span class="font-semibold text-slate-600">Harvest</span>, <span class="font-semibold text-slate-600">Sow Indoors</span>, <span class="font-semibold text-slate-600">Direct Sow</span>, or <span class="font-semibold text-slate-600">Transplant</span> task and use its harvest / sown fields.</p>' +
           '</div>';
       }
 
@@ -2897,7 +2882,7 @@
                     '<span class="text-xs text-slate-600 truncate flex-1">' + escapeHtml(p.name) + '</span>' +
                     '<span class="text-xs font-bold text-amber-700 shrink-0" title="Harvested">' + pTotals + '</span>' +
                   '</div>' +
-                  sownInputsMarkup('planting', p.id, p) +
+                  sownChipsMarkup(p) +
                 '</div>';
             }).join('');
             // If any harvests were logged against the whole plant (no variety), show a row.
@@ -2909,17 +2894,17 @@
                     '<span class="text-xs text-slate-400 italic truncate flex-1">Whole plant</span>' +
                     '<span class="text-xs font-bold text-amber-700 shrink-0">' + (harvestTotals(noVar) || '—') + '</span>' +
                   '</div>' +
-                  sownInputsMarkup('veg', v.id, v) +
+                  sownChipsMarkup(v) +
                 '</div>';
             }
           } else {
-            // No varieties: crop-level sow-method inputs.
+            // No varieties: crop-level sown breakdown (read-only).
             body = '<div>' +
                 '<div class="flex items-center justify-between">' +
                   '<span class="text-[11px] font-semibold text-slate-500">Sown by method</span>' +
                   '<div class="text-right"><div class="text-[10px] text-slate-400 uppercase tracking-wide font-semibold">Harvested</div><div class="text-sm font-bold text-amber-700">' + totals + '</div></div>' +
                 '</div>' +
-                sownInputsMarkup('veg', v.id, v) +
+                sownChipsMarkup(v) +
               '</div>';
           }
           return '<div class="rounded-xl border border-slate-200 p-3">' +
@@ -2949,26 +2934,12 @@
                 '<span class="text-xs font-bold text-amber-700 shrink-0">' + amtStr + '</span>' +
                 (h.notes ? '<span class="text-[11px] text-slate-400 truncate hidden sm:inline">' + escapeHtml(h.notes) + '</span>' : '') +
                 '<span class="ml-auto text-[10px] font-semibold text-slate-400 shrink-0">' + dateStr + '</span>' +
-                '<button data-del-harvest="' + h.id + '" class="text-slate-300 hover:text-rose-500 transition shrink-0" title="Delete"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>' +
               '</div>';
           }).join('') + '</div>';
       }
 
       el.innerHTML = header + form + cards + log;
-      // Populate the variety dropdown for the initially-selected plant.
-      populateHarvestPlantingSelect();
       lucide.createIcons();
-    }
-
-    // Fill the harvest form's variety dropdown based on the selected plant.
-    function populateHarvestPlantingSelect() {
-      const vegSel = document.getElementById('harvestVeg');
-      const pSel = document.getElementById('harvestPlanting');
-      if (!vegSel || !pSel) return;
-      const v = vegById(+vegSel.value);
-      const opts = ['<option value="">Whole plant</option>']
-        .concat((v && v.plantings || []).map(p => '<option value="' + p.id + '">' + escapeHtml(p.name) + '</option>'));
-      pSel.innerHTML = opts.join('');
     }
 
     function renderMonth() {
@@ -5132,33 +5103,7 @@
       }
     });
 
-    document.getElementById('harvestView').addEventListener('click', e => {
-      const add = e.target.closest('#harvestAdd');
-      if (add) {
-        const vegId = +document.getElementById('harvestVeg').value;
-        if (!vegId) return;
-        const pRaw = document.getElementById('harvestPlanting').value;
-        addHarvest({
-          vegId,
-          plantingId: pRaw ? +pRaw : null,
-          amount: document.getElementById('harvestAmount').value,
-          unit: document.getElementById('harvestUnit').value,
-          date: document.getElementById('harvestDate').value || isoToday(),
-          notes: document.getElementById('harvestNote').value.trim(),
-        });
-        return;
-      }
-      const del = e.target.closest('[data-del-harvest]');
-      if (del) { deleteHarvest(+del.dataset.delHarvest); return; }
-    });
-    document.getElementById('harvestView').addEventListener('change', e => {
-      const vegSel = e.target.closest('#harvestVeg');
-      if (vegSel) { populateHarvestPlantingSelect(); return; }
-      const sownP = e.target.closest('[data-sown-planting]');
-      if (sownP) { setSownMethod(plantingById(+sownP.dataset.sownPlanting), sownP.dataset.method, sownP.value); renderHarvest(); return; }
-      const sownV = e.target.closest('[data-sown-veg]');
-      if (sownV) { setSownMethod(vegById(+sownV.dataset.sownVeg), sownV.dataset.method, sownV.value); renderHarvest(); return; }
-    });
+    // Harvest Tracker is read-only — all data is entered from task areas.
 
     document.getElementById('collapseAllBtn').addEventListener('click', toggleAllVegsCollapsed);
 
