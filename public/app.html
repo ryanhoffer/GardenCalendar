@@ -1464,6 +1464,39 @@
     function effectiveDate(t) { return (t.done && t.doneDate) ? t.doneDate : t.date; }
     function isGhost(t) { return !t.done; }
 
+    // ----- Task status: planned / done / skipped -----
+    // "Skipped" means the task is resolved (it counts as complete for progress
+    // and the completed filter) but didn't actually happen — e.g. watering that
+    // rained itself out. Under the hood a skipped item is still `done` so all
+    // existing completion logic keeps working; a parallel flag marks it skipped.
+    //   one-time:  t.skipped (bool), alongside t.done
+    //   recurring: t.skippedDates[occISO] (bool), alongside t.doneDates[occISO]
+    function isSkipped(t) { return !!t.skipped; }
+    function occurrenceSkipped(master, iso) { return !!(master.skippedDates || {})[iso]; }
+    // Status of a (possibly virtual) task: 'planned' | 'done' | 'skipped'.
+    function taskStatus(t) {
+      if (!t.done) return 'planned';
+      return t.skipped ? 'skipped' : 'done';
+    }
+    // Cycle a one-time task's status planned -> done -> skipped -> planned.
+    function cycleOneTimeStatus(t) {
+      const s = taskStatus(t);
+      if (s === 'planned') { t.done = true; t.skipped = false; if (!t.doneDate) t.doneDate = t.date; }
+      else if (s === 'done') { t.done = true; t.skipped = true; if (!t.doneDate) t.doneDate = t.date; }
+      else { t.done = false; t.skipped = false; t.doneDate = null; }
+    }
+    // Cycle one occurrence of a recurring series through the same three states.
+    function cycleOccurrenceStatus(master, iso) {
+      master.doneDates = master.doneDates || {};
+      master.skippedDates = master.skippedDates || {};
+      const done = !!master.doneDates[iso];
+      const skipped = !!master.skippedDates[iso];
+      if (!done) { master.doneDates[iso] = isoToday(); delete master.skippedDates[iso]; }
+      else if (!skipped) { master.skippedDates[iso] = true; }
+      else { delete master.doneDates[iso]; delete master.skippedDates[iso]; }
+    }
+
+
     // ----- Recurring tasks -----
     // A task with `repeat` other than 'none' is a single "series" record that
     // expands into virtual occurrences at render time. `exceptions` holds
@@ -1515,7 +1548,7 @@
       const noteOv = master.noteOverrides || {};
       const notes = Object.prototype.hasOwnProperty.call(noteOv, iso) ? noteOv[iso] : master.notes;
       return Object.assign({}, master, {
-        date: iso, done: !!dd, doneDate: dd || null, repeat: master.repeat, notes,
+        date: iso, done: !!dd, doneDate: dd || null, skipped: occurrenceSkipped(master, iso), repeat: master.repeat, notes,
         _masterId: master.id, _occ: iso,
       });
     }
@@ -2835,11 +2868,12 @@
       const name = taskLabel(t);
       const pc = taskColor(t);
       const ghost = isGhost(t);
+      const skipped = isSkipped(t);
       // Ghost = planned (faded, dashed outline, no fill). Done = solid colored fill.
       const wrapStyle = ghost
         ? 'background:transparent;border:1px dashed ' + tt.color + '80;'
         : 'background:' + tt.color + '1a;border:1px solid transparent;';
-      const wrapCls = ghost ? ' opacity-70' : '';
+      const wrapCls = ghost ? ' opacity-70' : (skipped ? ' opacity-60' : '');
       const dot = ghost
         ? '<span class="w-1.5 h-1.5 rounded-full shrink-0" style="border:1px solid ' + pc + ';background:transparent"></span>'
         : '<span class="w-1.5 h-1.5 rounded-full shrink-0" style="background:' + pc + '"></span>';
@@ -2848,8 +2882,8 @@
         ? '<i data-lucide="repeat" class="w-2.5 h-2.5 shrink-0 ml-auto" style="color:' + tt.color + '"></i>' : '';
       return '<button data-task="' + t.id + '"' + occAttr + ' class="w-full text-left flex items-center gap-1 rounded px-1 py-0.5 hover:opacity-100 transition' + wrapCls + '" style="' + wrapStyle + '">' +
           dot +
-          '<i data-lucide="' + tt.icon + '" class="w-3 h-3 shrink-0" style="color:' + tt.color + '"></i>' +
-          '<span class="text-[10px] font-semibold truncate' + (ghost ? ' italic' : '') + '" style="color:' + tt.color + '">' + escapeHtml(name) + '</span>' +
+          '<i data-lucide="' + (skipped ? 'slash' : tt.icon) + '" class="w-3 h-3 shrink-0" style="color:' + tt.color + '"></i>' +
+          '<span class="text-[10px] font-semibold truncate' + (ghost ? ' italic' : '') + (skipped ? ' line-through' : '') + '" style="color:' + tt.color + '">' + escapeHtml(name) + '</span>' +
           repeatIcon +
         '</button>';
     }
@@ -3320,17 +3354,24 @@
       const plantNoteChip = plantKey
         ? '<span data-note="' + plantKey + '" class="shrink-0 text-emerald-500 hover:text-emerald-600 transition" title="' + escapeHtml(noteLogText(plantKey)) + '"><i data-lucide="leaf" class="w-4 h-4"></i></span>'
         : '';
-      // Planned vs done badge. When `toggleable`, it becomes a button that
-      // flips completion in state (used by the Day view).
+      // Planned vs done vs skipped badge. When `toggleable`, it becomes a button
+      // that cycles completion state (used by the Day view).
       const badgeBase = 'shrink-0 text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded';
+      const status = taskStatus(t);
+      const nextLabel = status === 'planned' ? 'Mark as done' : status === 'done' ? 'Mark as skipped' : 'Mark as planned';
       const toggleAttrs = toggleable
         ? ' data-toggle-done="' + t.id + '"' + (t._occ ? ' data-toggle-occ="' + t._occ + '"' : '') +
-          ' role="button" tabindex="0" title="' + (ghost ? 'Mark as done' : 'Mark as not done') + '"'
+          ' role="button" tabindex="0" title="' + nextLabel + '"'
         : '';
       const toggleCls = toggleable ? ' cursor-pointer transition hover:ring-2 hover:ring-offset-1' : '';
-      const badge = ghost
-        ? '<span' + toggleAttrs + ' class="' + badgeBase + ' border border-dashed border-slate-300 text-slate-400' + toggleCls + (toggleable ? ' hover:border-solid hover:text-slate-600 hover:ring-slate-200' : '') + '">Planned</span>'
-        : '<span' + toggleAttrs + ' class="' + badgeBase + ' text-white' + toggleCls + (toggleable ? ' hover:ring-slate-300' : '') + '" style="background:' + tt.color + '">Done</span>';
+      let badge;
+      if (status === 'skipped') {
+        badge = '<span' + toggleAttrs + ' class="' + badgeBase + ' bg-slate-400 text-white' + toggleCls + (toggleable ? ' hover:ring-slate-300' : '') + '" title="Skipped — didn\'t happen">Skipped</span>';
+      } else if (status === 'done') {
+        badge = '<span' + toggleAttrs + ' class="' + badgeBase + ' text-white' + toggleCls + (toggleable ? ' hover:ring-slate-300' : '') + '" style="background:' + tt.color + '">Done</span>';
+      } else {
+        badge = '<span' + toggleAttrs + ' class="' + badgeBase + ' border border-dashed border-slate-300 text-slate-400' + toggleCls + (toggleable ? ' hover:border-solid hover:text-slate-600 hover:ring-slate-200' : '') + '">Planned</span>';
+      }
       const iconStyle = ghost
         ? 'background:transparent;border:1px dashed ' + tt.color + '80'
         : 'background:' + tt.color + '1a';
@@ -3721,7 +3762,9 @@
           : (t.done
               ? '<span class="inline-flex items-center gap-2">' +
                   '<input data-t-donedate="' + t.id + '" type="date" value="' + escapeHtml(t.doneDate || t.date) + '" class="px-2 py-1 rounded-lg text-xs border border-slate-200 bg-white outline-none focus:border-accent-500" />' +
-                  pill('data-t-done="' + t.id + '" data-done="1"', 'check-circle-2', 'Completed', true) +
+                  (t.skipped
+                    ? '<button data-t-done="' + t.id + '" data-done="1" type="button" class="group inline-flex items-center gap-1.5 pl-2.5 pr-3 py-1.5 rounded-full text-xs font-semibold border bg-slate-400 border-slate-400 text-white hover:bg-slate-500 hover:border-slate-500 transition" title="Skipped — didn\'t happen. Click to cycle."><i data-lucide="slash" class="w-3.5 h-3.5"></i><span>Skipped</span></button>'
+                    : pill('data-t-done="' + t.id + '" data-done="1"', 'check-circle-2', 'Completed', true)) +
                 '</span>'
               : pill('data-t-done="' + t.id + '" data-done="0"', 'circle', 'Mark complete', false));
         return '<div class="rounded-xl border border-slate-200 bg-slate-50/60 p-3 space-y-2' + (completed ? ' opacity-60' : '') + '" data-task-row="' + t.id + '">' +
@@ -3816,27 +3859,27 @@
       if (!live) return;
       if (isRecurring(draft)) {
         live.doneDates = draft.doneDates ? { ...draft.doneDates } : {};
+        live.skippedDates = draft.skippedDates ? { ...draft.skippedDates } : {};
       } else {
         live.done = !!draft.done;
         live.doneDate = draft.done ? (draft.doneDate || draft.date) : null;
+        live.skipped = !!draft.skipped;
       }
       renderAll();
       scheduleSave();
     }
 
     // Toggle a task's completion straight from a list row (e.g. the Day view
-    // Planned/Done chip). For a recurring occurrence this flips just that date
-    // in `doneDates`; for a one-time task it flips `done`/`doneDate`.
+    // Planned/Done chip). Cycles planned -> done -> skipped -> planned. For a
+    // recurring occurrence this cycles just that date; for a one-time task it
+    // cycles `done`/`skipped`/`doneDate`.
     function toggleTaskDone(taskId, occ) {
       const live = state.tasks.find(x => x.id === taskId);
       if (!live) return;
       if (occ && isRecurring(live)) {
-        live.doneDates = live.doneDates || {};
-        if (live.doneDates[occ]) delete live.doneDates[occ];
-        else live.doneDates[occ] = isoToday();
+        cycleOccurrenceStatus(live, occ);
       } else {
-        live.done = !live.done;
-        live.doneDate = live.done ? (live.doneDate || live.date) : null;
+        cycleOneTimeStatus(live);
       }
       renderAll();
       scheduleSave();
@@ -4324,6 +4367,7 @@
             master.doneDates = master.doneDates || {};
             if (done) master.doneDates[editingOcc] = doneDate || editingOcc;
             else delete master.doneDates[editingOcc];
+            if (!done && master.skippedDates) delete master.skippedDates[editingOcc];
             // Note override: keep it only when it differs from the series note.
             master.noteOverrides = master.noteOverrides || {};
             if (notes !== (master.notes || '')) master.noteOverrides[editingOcc] = notes;
@@ -4352,6 +4396,7 @@
         } else {
           // Standalone task (may be converted to/from recurring here).
           Object.assign(master, { vegId, plantingId, type: modalType, date, notes, repeat, done, doneDate, location });
+          if (!done) master.skipped = false;
           if (repeat === 'none') { delete master.repeatUntil; delete master.intervalDays; master.exceptions = []; }
           else { master.repeatUntil = repeatUntil; if (intervalDays) master.intervalDays = intervalDays; else delete master.intervalDays; master.exceptions = master.exceptions || []; master.done = false; master.doneDate = null; }
         }
@@ -4963,11 +5008,11 @@
       }
       const del = e.target.closest('[data-t-del]');
       if (del) { plantDraft.tasks = plantDraft.tasks.filter(x => x.id !== +del.dataset.tDel); renderPlantTasks(); return; }
-      // One-time task: toggle its completed state.
+      // One-time task: cycle its status planned -> done -> skipped -> planned.
       const done = e.target.closest('[data-t-done]');
       if (done) {
         const d = draftTaskById(+done.dataset.tDone);
-        if (d) { d.done = done.dataset.done !== '1'; if (d.done && !d.doneDate) d.doneDate = d.date; }
+        if (d) cycleOneTimeStatus(d);
         renderPlantTasks();
         commitDraftCompletion(d);
         return;
