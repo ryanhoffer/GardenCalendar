@@ -597,6 +597,13 @@
           <div id="taskDoneDateWrap" class="hidden mt-3 pl-6">
             <label class="block text-xs font-semibold text-slate-600 mb-1">Date actually done</label>
             <input id="taskDoneDate" type="date" class="w-full px-3 py-2 rounded-lg text-sm border border-slate-200 bg-white outline-none focus:border-accent-500 focus:ring-1 focus:ring-accent-500" />
+            <label class="flex items-center gap-2.5 cursor-pointer select-none mt-3">
+              <input id="taskSkipped" type="checkbox" class="w-4 h-4 rounded border-slate-300 text-slate-500 focus:ring-slate-400" style="accent-color:#64748b;" />
+              <span class="text-sm font-semibold text-slate-600 flex items-center gap-1.5">
+                <i data-lucide="slash" class="w-4 h-4 text-slate-400"></i> Skipped — didn't actually happen
+              </span>
+            </label>
+            <p class="text-[10px] text-slate-400 mt-1 pl-6">Counts as resolved (e.g. it rained, so watering wasn't needed), but marks that the task didn't happen.</p>
           </div>
         </div>
       </div>
@@ -3385,10 +3392,10 @@
         : '';
       return '<button data-task="' + t.id + '"' + occAttr + ' class="w-full text-left flex items-center gap-3 rounded-xl border border-slate-100 hover:border-accent-300 hover:bg-accent-50/40 transition px-3 py-2.5 mb-2 ' + (muted ? 'opacity-60' : '') + '">' +
           '<span class="w-9 h-9 rounded-lg flex items-center justify-center shrink-0" style="' + iconStyle + '">' +
-            '<i data-lucide="' + tt.icon + '" class="w-4 h-4" style="color:' + tt.color + (ghost ? ';opacity:0.7' : '') + '"></i>' +
+            '<i data-lucide="' + (status === 'skipped' ? 'slash' : tt.icon) + '" class="w-4 h-4" style="color:' + tt.color + (ghost ? ';opacity:0.7' : '') + '"></i>' +
           '</span>' +
           '<div class="min-w-0 flex-1">' +
-            '<div class="text-sm font-semibold text-slate-800 truncate' + (ghost ? ' italic' : '') + '">' +
+            '<div class="text-sm font-semibold text-slate-800 truncate' + (ghost ? ' italic' : '') + (status === 'skipped' ? ' line-through text-slate-500' : '') + '">' +
               escapeHtml(taskLabel(t)) + ' &middot; <span style="color:' + tt.color + '">' + tt.label + '</span>' + recur +
             '</div>' +
             '<div class="text-xs text-slate-500 truncate">' + dateStr + locTag + (t.notes ? ' &mdash; ' + escapeHtml(noteText(t.notes)) : '') + '</div>' +
@@ -4031,6 +4038,7 @@
       const doneCb = document.getElementById('taskDone');
       const doneWrap = document.getElementById('taskDoneDateWrap');
       const doneDate = document.getElementById('taskDoneDate');
+      const skippedCb = document.getElementById('taskSkipped');
       const repeatSel = document.getElementById('taskRepeat');
       const repeatUntil = document.getElementById('taskRepeatUntil');
       if (taskId) {
@@ -4058,6 +4066,7 @@
         doneCb.checked = occDone;
         doneDate.value = occDoneDate || (shownDate || isoToday());
         doneWrap.classList.toggle('hidden', !occDone);
+        skippedCb.checked = recurring && occ ? occurrenceSkipped(t, occ) : !!t.skipped;
         delBtn.classList.remove('hidden');
       } else {
         document.getElementById('modalTitle').textContent = 'Add Garden Task';
@@ -4072,6 +4081,7 @@
         doneCb.checked = false;
         doneDate.value = date || isoToday();
         doneWrap.classList.add('hidden');
+        skippedCb.checked = false;
         delBtn.classList.add('hidden');
       }
       syncRepeatUntil();
@@ -4332,6 +4342,7 @@
       const location = document.getElementById('taskLocation').value || null;
       const done = document.getElementById('taskDone').checked;
       const doneDate = done ? (document.getElementById('taskDoneDate').value || date) : null;
+      const skipped = done && document.getElementById('taskSkipped').checked;
       const repeat = document.getElementById('taskRepeat').value;
       let repeatUntil = document.getElementById('taskRepeatUntil').value || '';
       if (repeat !== 'none' && !repeatUntil) repeatUntil = addMonthsISO(date, 3);
@@ -4370,6 +4381,10 @@
             if (done) master.doneDates[editingOcc] = doneDate || editingOcc;
             else delete master.doneDates[editingOcc];
             if (!done && master.skippedDates) delete master.skippedDates[editingOcc];
+            // Per-occurrence skipped flag.
+            master.skippedDates = master.skippedDates || {};
+            if (skipped) master.skippedDates[editingOcc] = true;
+            else delete master.skippedDates[editingOcc];
             // Note override: keep it only when it differs from the series note.
             master.noteOverrides = master.noteOverrides || {};
             if (notes !== (master.notes || '')) master.noteOverrides[editingOcc] = notes;
@@ -4392,20 +4407,21 @@
               master.exceptions = Array.from(new Set([...(master.exceptions || []), editingOcc]));
               if (master.doneDates) delete master.doneDates[editingOcc];
               if (master.noteOverrides) delete master.noteOverrides[editingOcc];
-              state.tasks.push({ id: seq++, vegId, plantingId, type: modalType, date, notes, repeat: 'none', exceptions: [], done, doneDate: done ? doneDate : null, location });
+              if (master.skippedDates) delete master.skippedDates[editingOcc];
+              state.tasks.push({ id: seq++, vegId, plantingId, type: modalType, date, notes, repeat: 'none', exceptions: [], done, doneDate: done ? doneDate : null, skipped, location });
             }
           }
         } else {
           // Standalone task (may be converted to/from recurring here).
-          Object.assign(master, { vegId, plantingId, type: modalType, date, notes, repeat, done, doneDate, location });
+          Object.assign(master, { vegId, plantingId, type: modalType, date, notes, repeat, done, doneDate, skipped, location });
           if (!done) master.skipped = false;
           if (repeat === 'none') { delete master.repeatUntil; delete master.intervalDays; master.exceptions = []; }
-          else { master.repeatUntil = repeatUntil; if (intervalDays) master.intervalDays = intervalDays; else delete master.intervalDays; master.exceptions = master.exceptions || []; master.done = false; master.doneDate = null; }
+          else { master.repeatUntil = repeatUntil; if (intervalDays) master.intervalDays = intervalDays; else delete master.intervalDays; master.exceptions = master.exceptions || []; master.done = false; master.doneDate = null; master.skipped = false; }
         }
       } else {
         // New task.
         state.tasks.push(repeat === 'none'
-          ? { id: seq++, vegId, plantingId, type: modalType, date, notes, repeat: 'none', exceptions: [], done, doneDate: done ? doneDate : null, location }
+          ? { id: seq++, vegId, plantingId, type: modalType, date, notes, repeat: 'none', exceptions: [], done, doneDate: done ? doneDate : null, skipped, location }
           : { id: seq++, vegId, plantingId, type: modalType, date, notes, repeat, repeatUntil, exceptions: [], location, ...(intervalDays ? { intervalDays } : {}) });
       }
       // Make sure the new/edited task's type is visible in the filter
@@ -4522,6 +4538,7 @@
           const tt = TASK_TYPES[t.type] || TASK_TYPES.custom;
           const check = t.done ? '[x]' : '[ ]';
           let line = '- ' + check + ' **' + tt.label + '** — ' + taskLabel(t);
+          if (t.skipped) line += ' _(skipped)_';
           if (t.location) line += ' _(' + t.location + ')_';
           lines.push(line);
           const tn = noteText(t.note || '');
@@ -5349,6 +5366,8 @@
       if (e.target.checked && !dd.value) {
         dd.value = document.getElementById('taskDate').value || isoToday();
       }
+      // Skipped only applies to a completed task; clear it when un-marking done.
+      if (!e.target.checked) { const sk = document.getElementById('taskSkipped'); if (sk) sk.checked = false; }
     });
     // Toggle the "Repeat until" field when the repeat cadence changes.
     document.getElementById('taskRepeat').addEventListener('change', syncRepeatUntil);
