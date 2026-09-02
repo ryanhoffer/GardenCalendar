@@ -2866,7 +2866,17 @@
       if (!veggies.length) {
         cards = '<p class="text-sm text-slate-400 text-center py-10">Add plants to start tracking harvests.</p>';
       } else {
-        cards = '<div class="grid sm:grid-cols-2 gap-2.5 mb-4">' + veggies.map(v => {
+        // Only show plants that have some kind of planting recorded — a variety,
+        // a sown count (crop or variety level), or a logged harvest.
+        const tracked = veggies.filter(v =>
+          (v.plantings || []).length ||
+          sownTotal(v) ||
+          harvestsForVeg(v.id).length
+        );
+        if (!tracked.length) {
+          cards = '<p class="text-sm text-slate-400 text-center py-10">No plantings recorded yet. Add a Sow, Transplant, or Harvest task to start tracking.</p>';
+        } else {
+        cards = '<div class="grid sm:grid-cols-2 gap-2.5 mb-4">' + tracked.map(v => {
           const entries = harvestsForVeg(v.id);
           const totals = harvestTotals(entries) || '—';
           const plantings = (v.plantings || []).slice().sort((a, b) => a.name.localeCompare(b.name));
@@ -2917,6 +2927,7 @@
               body +
             '</div>';
         }).join('') + '</div>';
+        }
       }
 
       // Recent harvest log.
