@@ -1,0 +1,36 @@
+name: Supabase keep-alive
+
+# Free-tier Supabase projects pause after ~7 days of inactivity, which pulls
+# the API DNS + pooler tenant and breaks the app/kanban. This workflow pings
+# the REST API on a schedule so the project never idles long enough to pause.
+
+on:
+  schedule:
+    # Every 2 days at 12:00 UTC. Cron on GitHub Actions runs in UTC.
+    - cron: "0 12 */2 * *"
+  # Allow manual runs from the Actions tab.
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Supabase REST API
+        env:
+          SUPABASE_URL: https://zclmkmgakwwsofydzbxa.supabase.co
+          # Anon key is public (shipped in client code) — safe to store here.
+          SUPABASE_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpjbG1rbWdha3d3c29meWR6YnhhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY2MzA3ODksImV4cCI6MjEwMjIwNjc4OX0.9L6Qw42L8do49fv81Hb-dM4ikf1G460LWe04w_TVz7U
+        run: |
+          set -euo pipefail
+          # Lightweight, read-only query against the kanban table. HEAD + limit=1
+          # keeps it cheap while still exercising the DB so the project stays warm.
+          code=$(curl -s -o /dev/null -w "%{http_code}" \
+            -X GET "$SUPABASE_URL/rest/v1/project_board?select=id&limit=1" \
+            -H "apikey: $SUPABASE_ANON_KEY" \
+            -H "Authorization: Bearer $SUPABASE_ANON_KEY")
+          echo "REST API responded with HTTP $code"
+          # 2xx (data) or 401/403 (RLS blocked) all prove the project is awake.
+          if [ "$code" -ge 500 ] || [ "$code" -eq 000 ]; then
+            echo "::error::Supabase did not respond healthily (HTTP $code). It may be paused."
+            exit 1
+          fi
