@@ -592,6 +592,9 @@
           </div>
         </div>
 
+        <!-- Type-specific: harvest logging / planted-count for sow & transplant -->
+        <div id="taskExtra" class="hidden"></div>
+
         <!-- Planned vs done: mark complete and record the actual date -->
         <div class="rounded-xl border border-slate-200 bg-slate-50/70 p-3">
           <label class="flex items-center gap-2.5 cursor-pointer select-none">
@@ -4371,6 +4374,7 @@
       modal.classList.remove('hidden');
       // Reset all sections to expanded each time the modal opens.
       if (typeof setTaskModalSections === 'function') setTaskModalSections(false);
+      renderTaskExtra();
       lucide.createIcons();
     }
     // Set the Repeat dropdown to reflect a task, using the hidden "interval"
@@ -4612,6 +4616,81 @@
         b.classList.toggle('bg-white', !active);
       });
     }
+
+    // Render the type-specific extra section inside the task modal:
+    //  • sow/transplant types → a "plants / seeds sown" count for the selected
+    //    variety (or whole crop) that feeds the Harvest Tracker.
+    //  • harvest type → quick-log a harvest against this task's crop/variety on
+    //    the task's date, plus a list of existing harvests with delete.
+    function renderTaskExtra() {
+      const wrap = document.getElementById('taskExtra');
+      if (!wrap) return;
+      const vegRaw = document.getElementById('taskVeg').value;
+      const vegId = vegRaw ? +vegRaw : null;
+      const plantingRaw = document.getElementById('taskPlanting').value;
+      const plantingId = (vegId && plantingRaw) ? +plantingRaw : null;
+      const isSow = ['sow_indoors', 'direct_sow', 'transplant'].includes(modalType);
+      const isHarvest = modalType === 'harvest';
+
+      if (!vegId || (!isSow && !isHarvest)) { wrap.classList.add('hidden'); wrap.innerHTML = ''; return; }
+
+      const v = vegById(vegId);
+      if (!v) { wrap.classList.add('hidden'); wrap.innerHTML = ''; return; }
+      const p = plantingId ? plantingById(plantingId) : null;
+      const targetName = p ? (v.name + ' · ' + p.name) : v.name;
+      const accent = modalType === 'harvest' ? '#ea580c' : (TASK_TYPES[modalType] || {}).color || '#059669';
+
+      let inner = '';
+      if (isSow) {
+        const current = p ? (p.planted || '') : (v.planted || '');
+        inner =
+          '<div class="rounded-xl border border-slate-200 bg-slate-50/70 p-3">' +
+            '<div class="text-xs font-bold uppercase tracking-wide text-slate-400 mb-2 flex items-center gap-1.5">' +
+              '<i data-lucide="sprout" class="w-3.5 h-3.5" style="color:' + accent + '"></i> Plants / seeds sown</div>' +
+            '<div class="flex items-center gap-2">' +
+              '<span class="text-xs text-slate-600 flex-1 truncate">' + escapeHtml(targetName) + '</span>' +
+              '<input id="taskExtraSown" type="number" min="0" value="' + current + '" placeholder="0" ' +
+                'class="w-24 px-2 py-1.5 rounded-lg text-sm border border-slate-200 bg-white outline-none focus:border-accent-500" /></div>' +
+            '<p class="text-[10px] text-slate-400 mt-1.5">Feeds the Harvest Tracker so you can compare what you planted vs. harvested.</p>' +
+          '</div>';
+      } else {
+        // Harvest: show entries scoped to the selected variety, or whole-crop.
+        const entries = (p ? harvestsForPlanting(plantingId) : harvestsForVegNoPlanting(vegId))
+          .slice().sort((a, b) => b.date.localeCompare(a.date));
+        const totals = harvestTotals(entries) || '—';
+        const unitOpts = HARVEST_UNITS.map(u => '<option value="' + u + '">' + u + '</option>').join('');
+        const list = entries.length
+          ? '<div class="space-y-1 mt-2 max-h-32 overflow-y-auto">' + entries.map(h =>
+              '<div class="flex items-center gap-2 text-xs">' +
+                '<span class="text-slate-400 w-16 shrink-0">' + escapeHtml(h.date) + '</span>' +
+                '<span class="font-semibold text-amber-700 w-16 shrink-0">' + harvestTotals([h]) + '</span>' +
+                '<span class="text-slate-500 truncate flex-1">' + escapeHtml(h.notes || '') + '</span>' +
+                '<button data-task-harvest-del="' + h.id + '" class="text-slate-300 hover:text-rose-500 shrink-0" title="Delete"><i data-lucide="x" class="w-3.5 h-3.5"></i></button>' +
+              '</div>').join('') + '</div>'
+          : '<p class="text-[10px] text-slate-400 mt-2">No harvests logged yet for this ' + (p ? 'variety' : 'crop') + '.</p>';
+        inner =
+          '<div class="rounded-xl border border-slate-200 bg-slate-50/70 p-3">' +
+            '<div class="text-xs font-bold uppercase tracking-wide text-slate-400 mb-2 flex items-center gap-1.5">' +
+              '<i data-lucide="wheat" class="w-3.5 h-3.5" style="color:' + accent + '"></i> Harvest — ' + escapeHtml(targetName) +
+              '<span class="ml-auto text-amber-700 normal-case tracking-normal">' + totals + '</span></div>' +
+            '<div class="flex items-end gap-2">' +
+              '<div class="w-20"><label class="block text-[10px] font-semibold text-slate-500 mb-0.5">Amount</label>' +
+                '<input id="taskHarvestAmount" type="number" min="0" step="0.01" value="1" class="w-full px-2 py-1.5 rounded-lg text-xs border border-slate-200 bg-white outline-none focus:border-accent-500" /></div>' +
+              '<div class="w-24"><label class="block text-[10px] font-semibold text-slate-500 mb-0.5">Unit</label>' +
+                '<select id="taskHarvestUnit" class="w-full px-2 py-1.5 rounded-lg text-xs border border-slate-200 bg-white outline-none focus:border-accent-500">' + unitOpts + '</select></div>' +
+              '<div class="flex-1 min-w-[100px]"><label class="block text-[10px] font-semibold text-slate-500 mb-0.5">Note (optional)</label>' +
+                '<input id="taskHarvestNote" type="text" maxlength="80" class="w-full px-2 py-1.5 rounded-lg text-xs border border-slate-200 bg-white outline-none focus:border-accent-500" /></div>' +
+              '<button id="taskHarvestAdd" type="button" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-accent-600 text-white hover:bg-accent-700 shadow-sm transition flex items-center gap-1"><i data-lucide="plus" class="w-3.5 h-3.5"></i> Log</button>' +
+            '</div>' +
+            '<p class="text-[10px] text-slate-400 mt-1.5">Logged on the task date (' + (document.getElementById('taskDate').value || isoToday()) + ').</p>' +
+            list +
+          '</div>';
+      }
+      wrap.innerHTML = inner;
+      wrap.classList.remove('hidden');
+      lucide.createIcons();
+    }
+
     function saveTask() {
       const vegRaw = document.getElementById('taskVeg').value;
       const vegId = vegRaw ? +vegRaw : null;
@@ -5701,11 +5780,51 @@
 
     document.getElementById('taskTypeGrid').addEventListener('click', e => {
       const btn = e.target.closest('[data-type]');
-      if (btn) { modalType = btn.dataset.type; highlightTypeButtons(); }
+      if (btn) { modalType = btn.dataset.type; highlightTypeButtons(); renderTaskExtra(); }
     });
     // When the crop changes in the modal, reload its varieties / plantings.
     document.getElementById('taskVeg').addEventListener('change', e => {
       populatePlantingSelect(e.target.value ? +e.target.value : null, null);
+      renderTaskExtra();
+    });
+    document.getElementById('taskPlanting').addEventListener('change', renderTaskExtra);
+    document.getElementById('taskDate').addEventListener('change', () => {
+      if (modalType === 'harvest') renderTaskExtra();
+    });
+    // Handle interactions inside the type-specific extra section.
+    document.getElementById('taskExtra').addEventListener('input', e => {
+      const sown = e.target.closest('#taskExtraSown');
+      if (sown) {
+        const vegRaw = document.getElementById('taskVeg').value;
+        const vegId = vegRaw ? +vegRaw : null;
+        const plantingRaw = document.getElementById('taskPlanting').value;
+        const plantingId = (vegId && plantingRaw) ? +plantingRaw : null;
+        if (plantingId) setPlantedCount(plantingId, sown.value);
+        else if (vegId) setPlantedCountVeg(vegId, sown.value);
+      }
+    });
+    document.getElementById('taskExtra').addEventListener('click', e => {
+      const add = e.target.closest('#taskHarvestAdd');
+      if (add) {
+        const vegRaw = document.getElementById('taskVeg').value;
+        const vegId = vegRaw ? +vegRaw : null;
+        if (!vegId) return;
+        const plantingRaw = document.getElementById('taskPlanting').value;
+        const plantingId = (vegId && plantingRaw) ? +plantingRaw : null;
+        const amount = Number(document.getElementById('taskHarvestAmount').value) || 0;
+        if (amount <= 0) { alert('Enter a harvest amount greater than 0.'); return; }
+        addHarvest({
+          vegId, plantingId,
+          date: document.getElementById('taskDate').value || isoToday(),
+          amount,
+          unit: document.getElementById('taskHarvestUnit').value || 'count',
+          notes: document.getElementById('taskHarvestNote').value || '',
+        });
+        renderTaskExtra();
+        return;
+      }
+      const del = e.target.closest('[data-task-harvest-del]');
+      if (del) { deleteHarvest(+del.dataset.taskHarvestDel); renderTaskExtra(); }
     });
     document.getElementById('modalSave').addEventListener('click', saveTask);
     // Toggle the "date actually done" field when marking a task complete.
