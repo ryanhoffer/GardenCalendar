@@ -2761,6 +2761,9 @@
     const HARVEST_UNITS = ['count', 'lb', 'oz', 'kg', 'g', 'bunch', 'basket'];
     // All harvest entries for a crop (optionally a specific planting).
     function harvestsForVeg(vegId) { return (state.harvests || []).filter(h => h.vegId === vegId); }
+    function harvestsForPlanting(plantingId) { return (state.harvests || []).filter(h => h.plantingId === plantingId); }
+    // Harvests logged against a crop with NO specific variety.
+    function harvestsForVegNoPlanting(vegId) { return (state.harvests || []).filter(h => h.vegId === vegId && !h.plantingId); }
     // Sum harvest amounts grouped by unit → "3 lb · 12 count".
     function harvestTotals(entries) {
       const byUnit = {};
@@ -2782,8 +2785,16 @@
       scheduleSave();
       renderAll();
     }
-    // Set the "planted / sown" count on a crop (number of plants or seeds).
-    function setPlantedCount(vegId, n) {
+    // Set the "planted / sown" count on a variety (planting). Falls back to the
+    // crop itself for plants that have no varieties.
+    function setPlantedCount(plantingId, n) {
+      const p = plantingById(plantingId);
+      if (!p) return;
+      const val = Math.max(0, parseInt(n, 10) || 0);
+      if (val) p.planted = val; else delete p.planted;
+      scheduleSave();
+    }
+    function setPlantedCountVeg(vegId, n) {
       const v = vegById(vegId);
       if (!v) return;
       const val = Math.max(0, parseInt(n, 10) || 0);
@@ -2797,7 +2808,8 @@
       const allHarvests = (state.harvests || []).slice().sort((a, b) => b.date.localeCompare(a.date));
 
       // Header + season totals.
-      const totalPlanted = veggies.reduce((n, v) => n + (v.planted || 0), 0);
+      const totalPlanted = veggies.reduce((n, v) =>
+        n + (v.planted || 0) + (v.plantings || []).reduce((m, p) => m + (p.planted || 0), 0), 0);
       const totalEntries = allHarvests.length;
       const header =
         '<div class="flex flex-wrap items-center gap-2 mb-4">' +
@@ -2842,17 +2854,47 @@
         cards = '<div class="grid sm:grid-cols-2 gap-2.5 mb-4">' + veggies.map(v => {
           const entries = harvestsForVeg(v.id);
           const totals = harvestTotals(entries) || '—';
+          const plantings = (v.plantings || []).slice().sort((a, b) => a.name.localeCompare(b.name));
+          // Per-variety rows: each with its own planted/sown input + harvested total.
+          let body;
+          if (plantings.length) {
+            body = '<div class="space-y-1.5">' + plantings.map(p => {
+              const pTotals = harvestTotals(harvestsForPlanting(p.id)) || '—';
+              const pColor = p.color || v.color;
+              return '<div class="flex items-center gap-2">' +
+                  '<span class="w-2 h-2 rounded-full shrink-0" style="background:' + pColor + '"></span>' +
+                  '<span class="text-xs text-slate-600 truncate flex-1">' + escapeHtml(p.name) + '</span>' +
+                  '<label class="text-[10px] font-semibold text-slate-400 flex items-center gap-1 shrink-0" title="Plants or seeds sown">sown ' +
+                    '<input data-planted-planting="' + p.id + '" type="number" min="0" value="' + (p.planted || '') + '" placeholder="0" class="w-14 px-1.5 py-0.5 rounded text-xs border border-slate-200 bg-white outline-none focus:border-accent-500" /></label>' +
+                  '<span class="text-xs font-bold text-amber-700 shrink-0 w-16 text-right" title="Harvested">' + pTotals + '</span>' +
+                '</div>';
+            }).join('');
+            // If any harvests were logged against the whole plant (no variety), show a row.
+            const noVar = harvestsForVegNoPlanting(v.id);
+            if (noVar.length || v.planted) {
+              body += '<div class="flex items-center gap-2 pt-1 border-t border-slate-100 mt-1">' +
+                  '<span class="w-2 h-2 rounded-full shrink-0 border border-slate-300"></span>' +
+                  '<span class="text-xs text-slate-400 italic truncate flex-1">Whole plant</span>' +
+                  '<label class="text-[10px] font-semibold text-slate-400 flex items-center gap-1 shrink-0">sown ' +
+                    '<input data-planted-veg="' + v.id + '" type="number" min="0" value="' + (v.planted || '') + '" placeholder="0" class="w-14 px-1.5 py-0.5 rounded text-xs border border-slate-200 bg-white outline-none focus:border-accent-500" /></label>' +
+                  '<span class="text-xs font-bold text-amber-700 shrink-0 w-16 text-right">' + (harvestTotals(noVar) || '—') + '</span>' +
+                '</div>';
+            }
+          } else {
+            // No varieties: single plant-level input.
+            body = '<div class="flex items-center gap-2">' +
+                '<label class="text-[11px] font-semibold text-slate-500 flex items-center gap-1">Planted/sown ' +
+                  '<input data-planted-veg="' + v.id + '" type="number" min="0" value="' + (v.planted || '') + '" placeholder="0" class="w-16 px-1.5 py-1 rounded text-xs border border-slate-200 bg-white outline-none focus:border-accent-500" /></label>' +
+                '<div class="ml-auto text-right"><div class="text-[10px] text-slate-400 uppercase tracking-wide font-semibold">Harvested</div><div class="text-sm font-bold text-amber-700">' + totals + '</div></div>' +
+              '</div>';
+          }
           return '<div class="rounded-xl border border-slate-200 p-3">' +
               '<div class="flex items-center gap-2 mb-2">' +
                 iconMarkup(vegIconName(v), 'w-4 h-4', v.color) +
                 '<span class="text-sm font-semibold text-slate-800 truncate">' + escapeHtml(v.name) + '</span>' +
                 (entries.length ? '<span class="ml-auto text-[10px] font-bold text-slate-400">' + entries.length + ' log' + (entries.length === 1 ? '' : 's') + '</span>' : '') +
               '</div>' +
-              '<div class="flex items-center gap-2">' +
-                '<label class="text-[11px] font-semibold text-slate-500 flex items-center gap-1">Planted/sown ' +
-                  '<input data-planted-veg="' + v.id + '" type="number" min="0" value="' + (v.planted || '') + '" placeholder="0" class="w-16 px-1.5 py-1 rounded text-xs border border-slate-200 bg-white outline-none focus:border-accent-500" /></label>' +
-                '<div class="ml-auto text-right"><div class="text-[10px] text-slate-400 uppercase tracking-wide font-semibold">Harvested</div><div class="text-sm font-bold text-amber-700">' + totals + '</div></div>' +
-              '</div>' +
+              body +
             '</div>';
         }).join('') + '</div>';
       }
@@ -4753,7 +4795,13 @@
           if (vh.length) lines.push('- _Harvested:_ ' + (harvestTotals(vh) || '—'));
           const plantings = v.plantings || [];
           if (plantings.length) {
-            plantings.forEach(p => lines.push('- ' + (p.name || 'Planting')));
+            plantings.forEach(p => {
+              const bits = [];
+              if (p.planted) bits.push('sown ' + p.planted);
+              const ph = harvestsForPlanting(p.id);
+              if (ph.length) bits.push('harvested ' + (harvestTotals(ph) || '—'));
+              lines.push('- ' + (p.name || 'Planting') + (bits.length ? ' — _' + bits.join(', ') + '_' : ''));
+            });
           } else {
             lines.push('- _No plantings_');
           }
@@ -4993,7 +5041,9 @@
       const vegSel = e.target.closest('#harvestVeg');
       if (vegSel) { populateHarvestPlantingSelect(); return; }
       const planted = e.target.closest('[data-planted-veg]');
-      if (planted) { setPlantedCount(+planted.dataset.plantedVeg, planted.value); renderHarvest(); return; }
+      if (planted) { setPlantedCountVeg(+planted.dataset.plantedVeg, planted.value); renderHarvest(); return; }
+      const plantedP = e.target.closest('[data-planted-planting]');
+      if (plantedP) { setPlantedCount(+plantedP.dataset.plantedPlanting, plantedP.value); renderHarvest(); return; }
     });
 
     document.getElementById('collapseAllBtn').addEventListener('click', toggleAllVegsCollapsed);
