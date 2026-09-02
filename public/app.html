@@ -2790,19 +2790,46 @@
     }
     // Set the "planted / sown" count on a variety (planting). Falls back to the
     // crop itself for plants that have no varieties.
-    function setPlantedCount(plantingId, n) {
-      const p = plantingById(plantingId);
-      if (!p) return;
+    // Sow methods tracked separately for analytics — a crop/variety records how
+    // many were started by each method (sow indoors / direct sow / transplant).
+    // A legacy single `planted` count is kept as an unattributed bucket so old
+    // data still totals correctly without guessing its method.
+    const SOW_METHODS = ['sow_indoors', 'direct_sow', 'transplant'];
+    const SOW_METHOD_SHORT = { sow_indoors: 'indoor', direct_sow: 'direct', transplant: 'transplant' };
+    function sownBuckets(obj) { return (obj && obj.sown && typeof obj.sown === 'object') ? obj.sown : {}; }
+    function sownMethodCount(obj, method) { return Number(sownBuckets(obj)[method]) || 0; }
+    // Total across all methods, including any legacy unattributed `planted`.
+    function sownTotal(obj) {
+      if (!obj) return 0;
+      const b = sownBuckets(obj);
+      return SOW_METHODS.reduce((n, m) => n + (Number(b[m]) || 0), 0) + (Number(obj.planted) || 0);
+    }
+    // Store a per-method sown count on a crop/variety object (0 clears it).
+    function setSownMethod(obj, method, n) {
+      if (!obj || !SOW_METHODS.includes(method)) return;
       const val = Math.max(0, parseInt(n, 10) || 0);
-      if (val) p.planted = val; else delete p.planted;
+      obj.sown = (obj.sown && typeof obj.sown === 'object') ? obj.sown : {};
+      if (val) obj.sown[method] = val; else delete obj.sown[method];
+      if (!Object.keys(obj.sown).length) delete obj.sown;
       scheduleSave();
     }
-    function setPlantedCountVeg(vegId, n) {
-      const v = vegById(vegId);
-      if (!v) return;
-      const val = Math.max(0, parseInt(n, 10) || 0);
-      if (val) v.planted = val; else delete v.planted;
-      scheduleSave();
+    // "indoor 2 · direct 3 · transplant 1 · other 4" — non-zero parts only.
+    function sownBreakdownStr(obj) {
+      const b = sownBuckets(obj);
+      const parts = SOW_METHODS.filter(m => b[m]).map(m => SOW_METHOD_SHORT[m] + ' ' + b[m]);
+      if (obj && obj.planted) parts.push('other ' + obj.planted);
+      return parts.join(' · ');
+    }
+    // Compact inline editor: one small input per sow method for a crop/variety.
+    function sownInputsMarkup(kind, id, obj) {
+      const attr = kind === 'planting' ? 'data-sown-planting' : 'data-sown-veg';
+      return '<div class="flex items-center gap-1.5 pl-4 mt-1 flex-wrap">' +
+        SOW_METHODS.map(m =>
+          '<label class="text-[10px] font-semibold text-slate-400 flex items-center gap-0.5" title="' + TASK_TYPES[m].label + '">' + SOW_METHOD_SHORT[m] +
+            ' <input ' + attr + '="' + id + '" data-method="' + m + '" type="number" min="0" value="' + (sownMethodCount(obj, m) || '') + '" placeholder="0" class="w-11 px-1 py-0.5 rounded text-xs border border-slate-200 bg-white outline-none focus:border-accent-500" /></label>'
+        ).join('') +
+        (obj && obj.planted ? '<span class="text-[10px] text-slate-400" title="Legacy count with no recorded method">+' + obj.planted + ' other</span>' : '') +
+        '</div>';
     }
 
     function renderHarvest() {
@@ -2812,7 +2839,7 @@
 
       // Header + season totals.
       const totalPlanted = veggies.reduce((n, v) =>
-        n + (v.planted || 0) + (v.plantings || []).reduce((m, p) => m + (p.planted || 0), 0), 0);
+        n + sownTotal(v) + (v.plantings || []).reduce((m, p) => m + sownTotal(p), 0), 0);
       const totalEntries = allHarvests.length;
       const header =
         '<div class="flex flex-wrap items-center gap-2 mb-4">' +
@@ -2861,34 +2888,38 @@
           // Per-variety rows: each with its own planted/sown input + harvested total.
           let body;
           if (plantings.length) {
-            body = '<div class="space-y-1.5">' + plantings.map(p => {
+            body = '<div class="space-y-2">' + plantings.map(p => {
               const pTotals = harvestTotals(harvestsForPlanting(p.id)) || '—';
               const pColor = p.color || v.color;
-              return '<div class="flex items-center gap-2">' +
-                  '<span class="w-2 h-2 rounded-full shrink-0" style="background:' + pColor + '"></span>' +
-                  '<span class="text-xs text-slate-600 truncate flex-1">' + escapeHtml(p.name) + '</span>' +
-                  '<label class="text-[10px] font-semibold text-slate-400 flex items-center gap-1 shrink-0" title="Plants or seeds sown">sown ' +
-                    '<input data-planted-planting="' + p.id + '" type="number" min="0" value="' + (p.planted || '') + '" placeholder="0" class="w-14 px-1.5 py-0.5 rounded text-xs border border-slate-200 bg-white outline-none focus:border-accent-500" /></label>' +
-                  '<span class="text-xs font-bold text-amber-700 shrink-0 w-16 text-right" title="Harvested">' + pTotals + '</span>' +
+              return '<div>' +
+                  '<div class="flex items-center gap-2">' +
+                    '<span class="w-2 h-2 rounded-full shrink-0" style="background:' + pColor + '"></span>' +
+                    '<span class="text-xs text-slate-600 truncate flex-1">' + escapeHtml(p.name) + '</span>' +
+                    '<span class="text-xs font-bold text-amber-700 shrink-0" title="Harvested">' + pTotals + '</span>' +
+                  '</div>' +
+                  sownInputsMarkup('planting', p.id, p) +
                 '</div>';
             }).join('');
             // If any harvests were logged against the whole plant (no variety), show a row.
             const noVar = harvestsForVegNoPlanting(v.id);
-            if (noVar.length || v.planted) {
-              body += '<div class="flex items-center gap-2 pt-1 border-t border-slate-100 mt-1">' +
-                  '<span class="w-2 h-2 rounded-full shrink-0 border border-slate-300"></span>' +
-                  '<span class="text-xs text-slate-400 italic truncate flex-1">Whole plant</span>' +
-                  '<label class="text-[10px] font-semibold text-slate-400 flex items-center gap-1 shrink-0">sown ' +
-                    '<input data-planted-veg="' + v.id + '" type="number" min="0" value="' + (v.planted || '') + '" placeholder="0" class="w-14 px-1.5 py-0.5 rounded text-xs border border-slate-200 bg-white outline-none focus:border-accent-500" /></label>' +
-                  '<span class="text-xs font-bold text-amber-700 shrink-0 w-16 text-right">' + (harvestTotals(noVar) || '—') + '</span>' +
+            if (noVar.length || sownTotal(v)) {
+              body += '<div class="pt-1.5 border-t border-slate-100 mt-1.5">' +
+                  '<div class="flex items-center gap-2">' +
+                    '<span class="w-2 h-2 rounded-full shrink-0 border border-slate-300"></span>' +
+                    '<span class="text-xs text-slate-400 italic truncate flex-1">Whole plant</span>' +
+                    '<span class="text-xs font-bold text-amber-700 shrink-0">' + (harvestTotals(noVar) || '—') + '</span>' +
+                  '</div>' +
+                  sownInputsMarkup('veg', v.id, v) +
                 '</div>';
             }
           } else {
-            // No varieties: single plant-level input.
-            body = '<div class="flex items-center gap-2">' +
-                '<label class="text-[11px] font-semibold text-slate-500 flex items-center gap-1">Planted/sown ' +
-                  '<input data-planted-veg="' + v.id + '" type="number" min="0" value="' + (v.planted || '') + '" placeholder="0" class="w-16 px-1.5 py-1 rounded text-xs border border-slate-200 bg-white outline-none focus:border-accent-500" /></label>' +
-                '<div class="ml-auto text-right"><div class="text-[10px] text-slate-400 uppercase tracking-wide font-semibold">Harvested</div><div class="text-sm font-bold text-amber-700">' + totals + '</div></div>' +
+            // No varieties: crop-level sow-method inputs.
+            body = '<div>' +
+                '<div class="flex items-center justify-between">' +
+                  '<span class="text-[11px] font-semibold text-slate-500">Sown by method</span>' +
+                  '<div class="text-right"><div class="text-[10px] text-slate-400 uppercase tracking-wide font-semibold">Harvested</div><div class="text-sm font-bold text-amber-700">' + totals + '</div></div>' +
+                '</div>' +
+                sownInputsMarkup('veg', v.id, v) +
               '</div>';
           }
           return '<div class="rounded-xl border border-slate-200 p-3">' +
@@ -4642,16 +4673,20 @@
 
       let inner = '';
       if (isSow) {
-        const current = p ? (p.planted || '') : (v.planted || '');
+        const target = p || v;
+        const current = sownMethodCount(target, modalType) || '';
+        const methodLabel = (TASK_TYPES[modalType] || {}).label || 'Sown';
+        const otherStr = sownBreakdownStr(target);
         inner =
           '<div class="rounded-xl border border-slate-200 bg-slate-50/70 p-3">' +
             '<div class="text-xs font-bold uppercase tracking-wide text-slate-400 mb-2 flex items-center gap-1.5">' +
-              '<i data-lucide="sprout" class="w-3.5 h-3.5" style="color:' + accent + '"></i> Plants / seeds sown</div>' +
+              '<i data-lucide="sprout" class="w-3.5 h-3.5" style="color:' + accent + '"></i> ' + escapeHtml(methodLabel) + ' — count</div>' +
             '<div class="flex items-center gap-2">' +
               '<span class="text-xs text-slate-600 flex-1 truncate">' + escapeHtml(targetName) + '</span>' +
               '<input id="taskExtraSown" type="number" min="0" value="' + current + '" placeholder="0" ' +
                 'class="w-24 px-2 py-1.5 rounded-lg text-sm border border-slate-200 bg-white outline-none focus:border-accent-500" /></div>' +
-            '<p class="text-[10px] text-slate-400 mt-1.5">Feeds the Harvest Tracker so you can compare what you planted vs. harvested.</p>' +
+            (otherStr ? '<p class="text-[10px] text-slate-400 mt-1.5">So far: ' + escapeHtml(otherStr) + '</p>' : '') +
+            '<p class="text-[10px] text-slate-400 mt-1.5">Recorded per method (' + escapeHtml(methodLabel) + ') for the Harvest Tracker &amp; analytics.</p>' +
           '</div>';
       } else {
         // Harvest: show entries scoped to the selected variety, or whole-crop.
@@ -4869,14 +4904,14 @@
       } else {
         state.veggies.forEach(v => {
           lines.push('### ' + v.name);
-          if (v.planted) lines.push('- _Planted / sown:_ ' + v.planted);
+          if (sownTotal(v)) lines.push('- _Sown:_ ' + (sownBreakdownStr(v) || sownTotal(v)) + ' (total ' + sownTotal(v) + ')');
           const vh = harvestsForVeg(v.id);
           if (vh.length) lines.push('- _Harvested:_ ' + (harvestTotals(vh) || '—'));
           const plantings = v.plantings || [];
           if (plantings.length) {
             plantings.forEach(p => {
               const bits = [];
-              if (p.planted) bits.push('sown ' + p.planted);
+              if (sownTotal(p)) bits.push('sown ' + (sownBreakdownStr(p) || sownTotal(p)));
               const ph = harvestsForPlanting(p.id);
               if (ph.length) bits.push('harvested ' + (harvestTotals(ph) || '—'));
               lines.push('- ' + (p.name || 'Planting') + (bits.length ? ' — _' + bits.join(', ') + '_' : ''));
@@ -5119,10 +5154,10 @@
     document.getElementById('harvestView').addEventListener('change', e => {
       const vegSel = e.target.closest('#harvestVeg');
       if (vegSel) { populateHarvestPlantingSelect(); return; }
-      const planted = e.target.closest('[data-planted-veg]');
-      if (planted) { setPlantedCountVeg(+planted.dataset.plantedVeg, planted.value); renderHarvest(); return; }
-      const plantedP = e.target.closest('[data-planted-planting]');
-      if (plantedP) { setPlantedCount(+plantedP.dataset.plantedPlanting, plantedP.value); renderHarvest(); return; }
+      const sownP = e.target.closest('[data-sown-planting]');
+      if (sownP) { setSownMethod(plantingById(+sownP.dataset.sownPlanting), sownP.dataset.method, sownP.value); renderHarvest(); return; }
+      const sownV = e.target.closest('[data-sown-veg]');
+      if (sownV) { setSownMethod(vegById(+sownV.dataset.sownVeg), sownV.dataset.method, sownV.value); renderHarvest(); return; }
     });
 
     document.getElementById('collapseAllBtn').addEventListener('click', toggleAllVegsCollapsed);
@@ -5799,8 +5834,8 @@
         const vegId = vegRaw ? +vegRaw : null;
         const plantingRaw = document.getElementById('taskPlanting').value;
         const plantingId = (vegId && plantingRaw) ? +plantingRaw : null;
-        if (plantingId) setPlantedCount(plantingId, sown.value);
-        else if (vegId) setPlantedCountVeg(vegId, sown.value);
+        const target = plantingId ? plantingById(plantingId) : (vegId ? vegById(vegId) : null);
+        if (target) setSownMethod(target, modalType, sown.value);
       }
     });
     document.getElementById('taskExtra').addEventListener('click', e => {
